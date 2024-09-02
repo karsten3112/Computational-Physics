@@ -17,18 +17,18 @@ class P_dist_handler():
         self.x_min = x_min
         self.p_dist = None
         self.N = N
-        self.func = None
 
     def get_expectation_value(self, operator, args=None):
         if self.p_func == None:
-            if self.p_dist == None:
+            func = lambda x: operator(x, *args)
+            if type(self.p_dist) == type(None):
                 self.p_dist = self.get_p_distribution(args=args)
-                return np.mean(operator(self.p_dist))
+                return np.mean(func(self.p_dist))
             else:
-                return np.mean(operator(self.p_dist))
+                return np.mean(func(self.p_dist))
         else:
-            self.func = lambda x: operator(x)*self.p_func(x, *args)
-            return self.direct_integration(func=self.func)
+            func = lambda x: operator(x, *args)*self.p_func(x, *args)
+            return self.direct_integration(func=func)
     
     def direct_integration(self, func):
         exp_val = quad(func, self.x_min, self.x_max)[0]
@@ -70,7 +70,7 @@ class H_pot():
         self.beta = 1.0/(self.k_b*T)
         self.k = k
         self.x_0 = x_0
-        self.v_func = lambda x: 1.0/2.0*self.k*(x-self.x_0)**2
+        self.v_func = lambda x, T, k, x_0: 1.0/2.0*self.k*(x-self.x_0)**2
         self.v_avg = None
         self.v_avg_squared = None
         self.cv = None
@@ -91,9 +91,9 @@ class H_pot():
                     return self.v_avg
         else:
             if self.v_avg == None:
-                delta_v = lambda x: self.v_func(x) - self.H_ref.v_func(x)
-                exp_factor = lambda x, T, k, x_0: np.exp(-delta_v(x)/T)
-                v_new = lambda x, T, k, x_0: self.v_func(x)*exp_factor(x=x,T=T, k=k, x_0=x_0)
+                delta_v = lambda x: self.v_func(x, self.T, self.k, self.x_0) - self.H_ref.v_func(x, self.H_ref.T, self.H_ref.k, self.H_ref.x_0)
+                exp_factor = lambda x, T, k, x_0: np.exp(-1.0/T*delta_v(x))
+                v_new = lambda x, T, k, x_0: self.v_func(x, self.T, self.k, self.x_0)*exp_factor(x=x,T=T, k=k, x_0=x_0)
                 t1 = self.H_ref.p_handler.get_expectation_value(operator=exp_factor, args=(self.T, self.k, self.x_0))
                 t2 = self.H_ref.p_handler.get_expectation_value(operator=v_new, args=(self.T, self.k, self.x_0))
                 self.v_avg = t2/t1
@@ -106,7 +106,7 @@ class H_pot():
             raise Exception("No p_handler has been assigned yet, so probabilities cannot be computed")
         else:
             if self.v_avg_squared == None:
-                v_op_squared = lambda x: self.v_func(x)**2
+                v_op_squared = lambda x, T, k, x_0: self.v_func(x, T=T, k=k, x_0=x_0)**2
                 self.v_avg_squared = self.p_handler.get_expectation_value(v_op_squared, args=(self.T, self.k, self.x_0))
                 return self.v_avg_squared
             else:
@@ -124,7 +124,7 @@ class H_pot():
                 self.get_v_avg
             if self.v_avg_squared == None:
                 self.get_v_avg_squared
-            self.cv = self.T0/(self.T**2)*(self.v_avg_squared - self.v_avg**2)
+            self.cv = 1.0/(self.T**2)*(self.v_avg_squared - self.v_avg**2)
             return self.cv
 
         if method == "finite_difference":
@@ -140,19 +140,19 @@ class H_pot():
         self.clear_p_handler()
 
 
-    def plot(self, ax, plot_range=[-4.0, 4.0]):
+    def plot(self, ax, plot_range=[-4.0, 4.0], color="C0"):
         xs = np.linspace(plot_range[0], plot_range[1], 400)
-        ax.plot(xs, self.v_func(xs), color="C0")
-        #if self.v_avg == None:
-        #    self.get_v_avg
-        ax.plot(xs, np.linspace(self.v_avg, self.v_avg, len(xs)), color="C1")
+        ax.plot(xs, self.v_func(xs,self.T, self.k, self.x_0), color=color)
+        if self.v_avg == None:
+            print("v_average has not been calculated yet, and cannot be displayed")
+        else:
+            ax.plot(xs, np.linspace(self.v_avg, self.v_avg, len(xs)), color=color)
         if self.p_handler.p_func == None:
             xs, bins = np.histogram((self.p_handler.p_dist), 30)
             xs = xs/(len(self.p_handler.p_dist)/10.0)
-            ax.stairs(xs, bins, color="red", alpha=0.4, fill=True)
+            ax.stairs(xs, bins, color=color, alpha=0.4, fill=True)
             for x, bin in zip(xs,bins):
                 ax.plot([bin,bin], [0,x], c="k", lw=0.8)
             ax.stairs(xs, bins, color="k")
-            
         else:
             ax.plot(xs, self.p_handler.p_func(xs, self.T, self.k, self.x_0), color="red")
