@@ -8,7 +8,7 @@ from scipy import special
 
 
 class P_dist_handler():
-    k_b = 1.380649e-23
+    k_b = 1.0 #Can be chosen arb. since it is not used really #1.380649e-23 
     T0 = 1.0#273.15
     def __init__(self, x_min, x_max, N=2000, p_func=None, Y=None) -> None:
         self.p_func = p_func
@@ -57,13 +57,13 @@ class P_dist_handler():
             return self.p_func
 
 class H_pot():
-    k_b = 1.380649e-23
+    k_b = 1.0 #Can be chosen arb. since it is not used really #1.380649e-23 
     T0 = 1.0#273.15
     def __init__(self,
             T, 
             k=1.0,
             x_0=0.0, 
-            p_handler=None
+            p_handler=None,
             ) -> None:
         
         self.T = T
@@ -74,19 +74,32 @@ class H_pot():
         self.v_avg = None
         self.v_avg_squared = None
         self.cv = None
+        self.H_ref = None
+        self.use_H_ref = False
         self.p_handler = p_handler
 
     @property
     def get_v_avg(self):
-        if self.p_handler == None:
-            raise Exception("No p_handler has been assigned yet, so probabilities cannot be computed")
+        if self.H_ref == None or self.use_H_ref == False:
+            if self.p_handler == None:
+                raise Exception("No p_handler has been assigned yet, so probabilities cannot be computed")
+            else:
+                if self.v_avg == None:
+                    self.v_avg = self.p_handler.get_expectation_value(operator=self.v_func, args=(self.T, self.k, self.x_0))
+                    return self.v_avg
+                else:
+                    return self.v_avg
         else:
             if self.v_avg == None:
-                self.v_avg = self.p_handler.get_expectation_value(operator=self.v_func, args=(self.T, self.k, self.x_0))
+                delta_v = lambda x: self.v_func(x) - self.H_ref.v_func(x)
+                exp_factor = lambda x, T, k, x_0: np.exp(-delta_v(x)/T)
+                v_new = lambda x, T, k, x_0: self.v_func(x)*exp_factor(x=x,T=T, k=k, x_0=x_0)
+                t1 = self.H_ref.p_handler.get_expectation_value(operator=exp_factor, args=(self.T, self.k, self.x_0))
+                t2 = self.H_ref.p_handler.get_expectation_value(operator=v_new, args=(self.T, self.k, self.x_0))
+                self.v_avg = t2/t1
                 return self.v_avg
             else:
                 return self.v_avg
-    
     @property
     def get_v_avg_squared(self):
         if self.p_handler == None:
@@ -120,12 +133,18 @@ class H_pot():
                 self.get_v_avg
             self.cv = (v_e_step - self.v_avg)/T_step
             return self.cv
+        
+    def use_H_pot_ref(self, H_ref):
+        self.H_ref = H_ref
+        self.use_H_ref = True
+        self.clear_p_handler()
+
 
     def plot(self, ax, plot_range=[-4.0, 4.0]):
         xs = np.linspace(plot_range[0], plot_range[1], 400)
         ax.plot(xs, self.v_func(xs), color="C0")
-        if self.v_avg == None:
-            self.get_v_avg
+        #if self.v_avg == None:
+        #    self.get_v_avg
         ax.plot(xs, np.linspace(self.v_avg, self.v_avg, len(xs)), color="C1")
         if self.p_handler.p_func == None:
             xs, bins = np.histogram((self.p_handler.p_dist), 30)
