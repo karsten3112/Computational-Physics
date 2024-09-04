@@ -10,37 +10,56 @@ from scipy import special
 class P_dist_handler():
     k_b = 1.0 #Can be chosen arb. since it is not used really #1.380649e-23 
     T0 = 1.0#273.15
-    def __init__(self, x_min, x_max, N=2000, p_func=None, Y=None) -> None:
+    def __init__(self, x_min, x_max, N=2000, p_func=None, Y=None, proposal_func=None) -> None:
         self.p_func = p_func
         self.Y = Y
+        self.proposal_func = proposal_func
         self.x_max = x_max
         self.x_min = x_min
         self.p_dist = None
         self.N = N
 
-    def get_expectation_value(self, operator, args=None):
+    def get_expectation_value(self, operator, operator_args=None, prop_args=None):
         if self.p_func == None:
-            func = lambda x: operator(x, *args)
+            func = lambda x: operator(x, *operator_args)
             if type(self.p_dist) == type(None):
-                self.p_dist = self.get_p_distribution(args=args)
+                self.p_dist = self.get_p_distribution(args=prop_args)
                 return np.mean(func(self.p_dist))
             else:
                 return np.mean(func(self.p_dist))
         else:
-            func = lambda x: operator(x, *args)*self.p_func(x, *args)
+            func = lambda x: operator(x, *operator_args)*self.p_func(x, *prop_args)
             return self.direct_integration(func=func)
     
     def direct_integration(self, func):
         exp_val = quad(func, self.x_min, self.x_max)[0]
         return exp_val
 
-    def metro_montecarlo(self):
-        pass
+    def metro_montecarlo(self, args):
+        x = args[2]
+        accept_prop = lambda x_prime, x: np.exp((args[0](x, *args[1::])-args[0](x_prime, *args[1::]))/args[2])
+        xs = []
+        while len(xs) < self.N+1:
+            p = np.random.rand(1)
+            x_prime = self.proposal_func(x)
+            acc_prob = accept_prop(x=x, x_prime=x_prime)
+            if acc_prob >= 1.0:
+                if p <= 1.0:
+                    xs.append(x_prime)
+                    x = x_prime
+                else:
+                    pass
+            else: 
+                if p <= acc_prob:
+                    xs.append(x_prime)
+                    x = x_prime
+                else:
+                    pass
+        return np.array(xs)
     
     def montecarlo(self, args):
         p_dist = []
         xs = np.linspace(self.x_min, self.x_max, self.N)
-        
         for x in xs:
             p = np.random.rand(1)
             if p <= self.Y(x, args[0], args[1], args[2]):
@@ -49,11 +68,14 @@ class P_dist_handler():
 
     def get_p_distribution(self, args):
         if self.p_func == None:
-            if self.Y == None:
-                return self.metro_montecarlo(args=args)
+            if self.proposal_func == None:
+                print("We did plain-montecarlo")
+                return self.montecarlo(args=args[1::])
             else:
-                return self.montecarlo(args=args)    
+                print("We did metro-montecarlo")
+                return self.metro_montecarlo(args=args)    
         else:
+            print("We return the analytical probability distribution")
             return self.p_func
 
 class H_pot():
@@ -85,7 +107,7 @@ class H_pot():
                 raise Exception("No p_handler has been assigned yet, so probabilities cannot be computed")
             else:
                 if self.v_avg == None:
-                    self.v_avg = self.p_handler.get_expectation_value(operator=self.v_func, args=(self.T, self.k, self.x_0))
+                    self.v_avg = self.p_handler.get_expectation_value(operator=self.v_func, operator_args=(self.T, self.k, self.x_0), prop_args=(self.v_func, self.T, self.k, self.x_0))
                     return self.v_avg
                 else:
                     return self.v_avg
@@ -94,8 +116,9 @@ class H_pot():
                 delta_v = lambda x: self.v_func(x, self.T, self.k, self.x_0) - self.H_ref.v_func(x, self.H_ref.T, self.H_ref.k, self.H_ref.x_0)
                 exp_factor = lambda x, T, k, x_0: np.exp(-1.0/T*delta_v(x))
                 v_new = lambda x, T, k, x_0: self.v_func(x, self.T, self.k, self.x_0)*exp_factor(x=x,T=T, k=k, x_0=x_0)
-                t1 = self.H_ref.p_handler.get_expectation_value(operator=exp_factor, args=(self.T, self.k, self.x_0))
-                t2 = self.H_ref.p_handler.get_expectation_value(operator=v_new, args=(self.T, self.k, self.x_0))
+                args = (self.T, self.k, self.x_0)
+                t1 = self.H_ref.p_handler.get_expectation_value(operator=exp_factor, operator_args=args, prop_args=args)
+                t2 = self.H_ref.p_handler.get_expectation_value(operator=v_new, operator_args=args, prop_args=args)
                 self.v_avg = t2/t1
                 return self.v_avg
             else:
