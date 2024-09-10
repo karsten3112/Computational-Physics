@@ -39,24 +39,25 @@ class P_dist_handler():
         x = args[3]
         accept_prop = lambda x_prime, x: np.exp((args[0](x, *args[1::])-args[0](x_prime, *args[1::]))/args[1])
         xs = []
-        while len(xs) < self.N+1:
-            p = np.random.rand(1)
-            x_prime = self.proposal_func(x)
-            acc_prob = accept_prop(x=x, x_prime=x_prime)
-            if acc_prob >= 1.0:
-                if p <= 1.0:
-                    xs.append(x_prime)
-                    x = x_prime
-                    #pass
-                else:
-                    pass
-            else: 
-                if p <= acc_prob:
-                    xs.append(x_prime)
-                    x = x_prime
-                else:
-                    pass
-        return np.array(xs)
+        if args[-1] != None:
+            while len(xs) < self.N+1:
+                p = np.random.rand(1)
+                x_prime = self.proposal_func(x)
+                acc_prob = accept_prop(x=x, x_prime=x_prime)
+                if acc_prob >= 1.0:
+                    if p <= 1.0:
+                        xs.append(x_prime)
+                        x = x_prime
+                        #pass
+                    else:
+                        pass
+                else: 
+                    if p <= acc_prob:
+                        xs.append(x_prime)
+                        x = x_prime
+                    else:
+                        pass
+            return np.array(xs)
     
     def montecarlo(self, args):
         p_dist = []
@@ -167,6 +168,31 @@ class H_pot():
         self.use_H_ref = True
         self.clear_p_handler()
 
+    def find_V_min(self, proposal_func, N_step, E_crit):
+        x = self.x_0
+        accept_prop = lambda x_prime, x: np.exp((self.v_func(x, self.T, self.k, self.x_0)-self.v_func(x_prime, self.T, self.k, self.x_0))/self.T)
+        xs = []
+        while len(xs) < N_step+1:
+            p = np.random.rand(1)
+            x_prime = proposal_func(x)
+            if self.v_func(x_prime, self.T, self.k, self.x_0) < E_crit:
+                    xs.append(x_prime)
+                    break
+            acc_prob = accept_prop(x=x, x_prime=x_prime)
+            if acc_prob >= 1.0:
+                if p <= 1.0:
+                    xs.append(x_prime)
+                    x = x_prime
+                    #pass
+                else:
+                    pass
+            else: 
+                if p <= acc_prob:
+                    xs.append(x_prime)
+                    x = x_prime
+                else:
+                    pass
+        return np.array(xs)
 
     def plot(self, ax, plot_range=[-4.0, 4.0], color="C0", bin_size=0.5):
         xs = np.linspace(plot_range[0], plot_range[1], 400)
