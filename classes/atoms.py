@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial.distance import pdist
 import copy
 
 class Atom():
@@ -64,6 +65,14 @@ class Atom_Collection():
         for atom, new_size in zip(self, new_sizes):
             atom.size = new_size
 
+    def reset_plot_axes(self, new_axes=None):
+        if new_axes == None:
+            for atom in self.atoms:
+                atom.plot_elem = None
+        else:
+            for atom in self.atoms:
+                atom.plot_elem = new_axes
+
     def plot(self, ax):
         return [atom.plot(ax=ax) for atom in self.atoms]
     
@@ -102,6 +111,14 @@ class Atom_Collection():
             raise Exception("No calculator has been assigned yet, therefore no force estimate can be given")
         else:
             return self.calculator.forces(self)
+
+    def set_colors(self, colors):
+        for atom, color in zip(self.atoms, colors):
+            atom.color=color
+
+    def get_distances(self):
+        pos = self.get_positions()
+        return pdist(pos)
 
     def get_potential_energy(self):
         if self.calculator == None:

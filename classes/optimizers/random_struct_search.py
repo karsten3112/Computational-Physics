@@ -1,4 +1,5 @@
 from classes.atoms import Atom, Atom_Collection
+from scipy.optimize import fmin
 import numpy as np
 import copy
 
@@ -10,11 +11,11 @@ class Random_Searcher():
         self.step_size = step_size
         self.best_energy = 0.0
 
-    def convergence_check(self, forces, force_crit=1e-3):
+    def convergence_check(self, forces, force_crit=1e-2):
         #is_converged = True
         force_mags = np.linalg.norm(forces, axis=1)
         #print(np.max(force_mags))
-        if np.max(force_mags) <= force_crit:
+        if abs(np.max(force_mags)) <= force_crit:
             return True
         else:
             return False
@@ -30,36 +31,28 @@ class Random_Searcher():
             i+=1
         #return atom_col
             
-    def sample_E(self, atom, force, atom_col):
-        alpha_samples = np.arange(1e-5, 1.0+1e-5, 1e-2)
-        Es = np.zeros(len(alpha_samples))
-        force_mag = np.linalg.norm(force)
-        for i, alpha in enumerate(alpha_samples):
-            atom.move(alpha*(force/force_mag))
-            Es[i] = atom_col.get_potential_energy()
-        index = np.argmin(Es)
-        return alpha_samples[index]*force/force_mag
-
+    def E_new(self, alpha, atom_col, force_unit):
+        copied_atoms = copy.deepcopy(atom_col)
+        new_pos = alpha*force_unit
+        copied_atoms.move_atoms(new_pos)
+        return copied_atoms.get_potential_energy()
     
-    def line_search(self, atom_col, N_max=5000, track=False):
+    def line_search(self, atom_col, N_max=5000, fmax=0.05, track=False):
         is_converged = False
         i = 0
+        opt_list = [copy.deepcopy(atom_col)]
         while is_converged == False and i < N_max:
-            steps = np.zeros(shape=(len(atom_col),2))
             forces = atom_col.get_forces()
-            j=0
-            for k, force in enumerate(forces):
-                atom_col_copy = copy.deepcopy(atom_col)
-                if atom_col_copy[k].frozen == True:
-                    pass
-                else:
-                    steps[j] =  self.sample_E(atom=atom_col_copy[k],atom_col=atom_col_copy, force=force)
-                j+=1
-            #print(steps)
-            atom_col.move_atoms(steps)
-            is_converged = self.convergence_check(atom_col.get_forces())
+            forces_unit = forces/np.linalg.norm(forces, axis=1)[:,None]
+            alpha_opt = fmin(self.E_new, 0.1, args=(atom_col, forces_unit), disp=False)
+            atom_col.move_atoms(alpha_opt*forces_unit)
+            opt_list.append(copy.deepcopy(atom_col))
+            is_converged = self.convergence_check(atom_col.get_forces(), force_crit=fmax)
             i+=1
-
+        if track == True:
+            return opt_list
+        else:
+            return opt_list[-1]
 
 
     def run(self, N_max=200, E_limit=-4.5, track=False, method="grad_descent"):

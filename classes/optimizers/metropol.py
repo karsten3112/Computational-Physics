@@ -15,11 +15,12 @@ class Metropol():
         else:
             pass #CODE SOMETHING HERE
     
-    def run(self, N_max=3000, E_limit=-4.5, track=False):
+    def run(self, N_max=3000, E_limit=-4.5, start_quench=2000, track=False):
         i = 0
         E_new = 100
         optimized_cols = []
         E_init = self.atom_col.get_potential_energy()
+        best_col = copy.deepcopy(self.atom_col)
         while i < N_max and E_new >= E_limit:
             proposal_col = copy.deepcopy(self.atom_col)
             E_init = proposal_col.get_potential_energy()
@@ -28,24 +29,36 @@ class Metropol():
                     pass
                 else:
                     p = np.random.rand(1)
-                    v = np.random.rand(1)[0]*2.0*np.pi
-                    #print(v)
-                    delr = np.array([self.step_size*np.cos(v), self.step_size*np.sin(v)])
-                    #print(delr)
-                    atom.move(delr)
+                    #v = np.random.rand(1)[0]*2.0*np.pi
+                    v = np.random.rand(2)*2.0 - 1.0
+                    #delr = np.array([self.step_size*np.cos(v), self.step_size*np.sin(v)])
+                    #delr = np.array([self.step_size*np.cos(v), self.step_size*np.sin(v)])
+                    atom.move(v)
                     E_new = proposal_col.get_potential_energy()
-                    #print(E_new, E_init)
                     acc_prob = np.exp(-(E_new-E_init)/self.T)
-                    if p < acc_prob:
-                        self.atom_col = proposal_col
-                        break
+                    if i > start_quench:
+                        if E_new < E_init:
+                            self.atom_col = proposal_col
+                            break
+                        else:
+                            pass 
+                    else:
+                        if p < acc_prob: #or E_new < E_init:
+                            self.atom_col = proposal_col
+                            break
+            
             if track == True:
                 optimized_cols.append(copy.deepcopy(self.atom_col))
+            
+            if best_col.get_potential_energy() > self.atom_col.get_potential_energy():
+                best_col = self.atom_col
+                #print(best_col.get_potential_energy())
+            
             i+=1
         
         if track == True:
             return optimized_cols
         else:
-            return self.atom_col
+            return best_col
             #print(i)
         
