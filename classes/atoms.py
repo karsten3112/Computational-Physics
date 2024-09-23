@@ -3,12 +3,14 @@ from scipy.spatial.distance import pdist
 import copy
 
 class Atom():
-    def __init__(self, position=np.zeros(2), color="C0", size=50.0, frozen=False) -> None:
+    def __init__(self, position=np.zeros(2), velocity=np.zeros(2), mass=1.0, color="C0", size=50.0, frozen=False) -> None:
         self.pos = position
         self.color = color
         self.plot_elem = None
         self.size = size
         self.frozen = frozen
+        self.velocity = velocity
+        self.mass = mass
 
     def __deepcopy__(self, memo):
         new_object = Atom()
@@ -27,6 +29,23 @@ class Atom():
             self.plot_elem.set_data(self.pos[0], self.pos[1])
         return self.plot_elem
     
+    def set_velocity(self, v):
+        if self.frozen == True:
+            pass
+        else:
+            self.velocity = v
+
+    def boost_velocity(self, v):
+        if self.frozen == True:
+            pass
+        else:
+            self.velocity+=v
+    
+    def set_position(self, r):
+        if self.frozen == True:
+            pass
+        else:
+            self.pos = r
     def move(self, r):
         if self.frozen == True:
             pass
@@ -38,6 +57,7 @@ class Atom_Collection():
     def __init__(self, atomlist) -> None:
         self.atoms = atomlist
         self.size = len(atomlist)
+        self.velocities = self.get_velocities()
         self.positions = self.get_positions()
         self.calculator = None
         self.N = 0
@@ -59,7 +79,6 @@ class Atom_Collection():
     def __getitem__(self, key):
         return self.atoms[key]
     
-    #def __deepcopy__(self, memo):
 
     def set_sizes(self, new_sizes):
         for atom, new_size in zip(self, new_sizes):
@@ -78,7 +97,15 @@ class Atom_Collection():
     
     def get_positions(self):
         return np.array([atom.pos for atom in self.atoms])
-    
+
+    def get_velocities(self):
+        return np.array([atom.velocity for atom in self.atoms])
+
+    def get_kinetic_energy(self):
+        velocities = self.get_velocities()
+        masses = np.array([atom.mass for atom in self.atoms])
+        return np.sum(np.dot(masses,velocities**2))
+
     def move_atoms(self, new_pos):
         for atom, pos in zip(self.atoms, new_pos):
             atom.move(pos)
@@ -90,6 +117,23 @@ class Atom_Collection():
     def set_atom_pos(self, index, pos):
         self.atoms[index].pos=pos
         self.positions = self.get_positions()
+
+    def set_positions(self, pos):
+        for atom, p in zip(self.atoms, pos):
+            atom.set_position(p)
+        self.positions = self.get_positions()
+
+    def set_velocities(self, vels):
+        for atom, vel in zip(self.atoms, vels):
+            atom.set_velocity(vel)
+        self.velocities = self.get_velocities()
+
+    def get_masses(self):
+        return np.array([atom.mass for atom in self.atoms])
+    
+    def set_atom_vel(self, index, vel):
+        self.atoms[index].set_velocity(vel)
+        self.velocities = self.get_velocities()
 
     def rattle_atoms(self, delta=0.1, rattle_steps=1):
         for i in range(rattle_steps):

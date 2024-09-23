@@ -211,3 +211,84 @@ class H_pot():
             ax.stairs(xs, bins, color="k")
         else:
             ax.plot(xs, self.p_handler.p_func(xs, self.T, self.k, self.x_0), color="red")
+
+
+
+
+class MD_Simulator():
+    kb = 1.0
+    T0 = 1.0
+    def __init__(self, temp, v_func, acc_func=None) -> None:
+        self.temp = temp
+        self.v_func = v_func
+        if type(acc_func) == None:
+            raise Exception("No acceleration function has been provided")
+        else:
+            self.acc_func = acc_func
+    
+    def verlet_integrate(self, x, v, time_step):
+        x_new = x + v*time_step + 1.0/2.0*self.acc_func(x)*time_step**2
+        v_new = v + 1.0/2.0*(self.acc_func(x) + self.acc_func(x_new))*time_step
+        return x_new, v_new
+    
+    def euler_integrate(self, x, v, time_step):
+        x_new = x + v*time_step
+        v_new = v + self.acc_func(x)*time_step
+        return x_new, v_new
+
+    def run_N2_integration(self, N_steps, x_init, v_init, t_init=0.0,time_step=0.01, method="verlet_integrate"):
+        result = np.zeros(shape=(N_steps, 3))
+        t = t_init
+        for i in range(N_steps):
+            if method == "verlet_integrate":
+                x_init, v_init = self.verlet_integrate(x=x_init, v=v_init, time_step=time_step)
+            if method == "euler_integrate":
+                x_init, v_init = self.euler_integrate(x=x_init, v=v_init, time_step=time_step)
+            result[i] = np.array([t, x_init, v_init])
+            t+=time_step
+        return result
+
+    def run_metropolis_montecarlo(self, N_points, x_init, proposal_func):
+        result = np.zeros(N_points)
+        acc_prob = lambda x, x_prime: np.exp((self.v_func(x)-self.v_func(x_prime))/self.temp)
+        x = x_init
+        i=0
+        while i < N_points:
+            p = np.random.rand(1)
+            x_prime = proposal_func(x)
+            if p < acc_prob(x=x, x_prime=x_prime):
+                x = x_prime
+            else:
+                pass
+            result[i] = x
+            i+=1
+        return result
+
+    def run_md_simulation(self, N_steps, x_init, v_init, t_init=0.0, time_step=0.01, method="verlet_integrate", integrate_steps=50):
+        result = np.zeros(shape=(N_steps,3))
+        t = t_init
+        for i in range(N_steps):
+            v_init = np.random.randn(1)[0]*np.sqrt(self.kb*self.temp/1.0) #Have to divide by the mass here, but it has been set to 1.
+            after_step = self.run_N2_integration(N_steps=integrate_steps, x_init=x_init, v_init=v_init, t_init=t, time_step=time_step, method=method)
+            x_init = after_step[-1][1]
+            t = after_step[-1][0]
+            result[i] = after_step[-1]
+            #print(after_step[-1])
+        return result
+
+    def get_cv(self, x_distribution):
+        return (np.mean(self.v_func(x_distribution)**2) - np.mean(self.v_func(x_distribution))**2)*self.kb/self.temp**2
+
+    def get_v_avg(self, x_distribution):
+        return np.mean(self.v_func(x_distribution))
+
+    def plot(self, ax, x_distribution, bin_size=0.5, x_lims=[-2,2]):
+        #ax.set_xlim(x_lims)
+        xs_plot = np.linspace(x_lims[0], x_lims[1], 1000)
+        ax.plot(xs_plot, self.v_func(xs_plot), c='k')
+        bin_edges = np.arange(x_lims[0], x_lims[1]+bin_size, bin_size)
+        dist, bin_edges = np.histogram(x_distribution, bins=bin_edges)
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) /2
+        max_dist = np.max(dist)
+        ax.bar(bin_centers, dist/max_dist*1.2, width=0.8*bin_size, alpha=0.6, edgecolor="k")
+        ax.set_title(r"$V_{avg}=$"+f"{self.get_v_avg(x_distribution=x_distribution).round(3)}"+"   "+r"$C_{v}=$"+f"{self.get_cv(x_distribution=x_distribution).round(3)}")
