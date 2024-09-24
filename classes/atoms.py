@@ -18,6 +18,8 @@ class Atom():
         new_object.color = copy.copy(self.color)
         new_object.size = copy.copy(self.size)
         new_object.frozen = copy.copy(self.frozen)
+        new_object.velocity = copy.copy(self.velocity)
+        new_object.mass = copy.copy(self.mass)
         new_object.plot_elem = None
         memo[id(self)] = new_object
         return new_object
@@ -104,7 +106,7 @@ class Atom_Collection():
     def get_kinetic_energy(self):
         velocities = self.get_velocities()
         masses = np.array([atom.mass for atom in self.atoms])
-        return np.sum(np.dot(masses,velocities**2))
+        return 1.0/2.0*np.sum(np.dot(masses,velocities**2))
 
     def move_atoms(self, new_pos):
         for atom, pos in zip(self.atoms, new_pos):
@@ -126,6 +128,11 @@ class Atom_Collection():
     def set_velocities(self, vels):
         for atom, vel in zip(self.atoms, vels):
             atom.set_velocity(vel)
+        self.velocities = self.get_velocities()
+    
+    def boost_velocities(self, vels):
+        for atom, vel in zip(self.atoms, vels):
+            atom.boost_velocity(vel)
         self.velocities = self.get_velocities()
 
     def get_masses(self):
