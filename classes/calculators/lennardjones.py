@@ -14,10 +14,8 @@ class LennardJones():
         t1 = 6.0*(self.sigma**6)/(r**7)
         t2 = 12.0*(self.sigma**12)/(r**13)        
         return 4.0*self.eps0*(t1 - t2)
-        #pass
 
-    def forces(self, atoms):
-        pos = atoms.get_positions()
+    def forces(self, pos):
         diff = pos[np.newaxis, :, :] - pos[:, np.newaxis, :]
         r = np.sqrt(np.sum(diff**2, axis=-1))
         np.fill_diagonal(r, np.inf)
@@ -26,5 +24,5 @@ class LennardJones():
                         r[..., np.newaxis], axis=1)
         return forces
 
-    def energy(self, atoms):
-        return np.sum(self._V(pdist(atoms.get_positions())))
+    def energy(self, pos):
+        return np.sum(self._V(pdist(pos)))

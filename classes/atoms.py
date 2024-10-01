@@ -1,3 +1,5 @@
+import os
+import pickle
 import numpy as np
 from scipy.spatial.distance import pdist
 import copy
@@ -61,6 +63,8 @@ class Atom_Collection():
         self.size = len(atomlist)
         self.velocities = self.get_velocities()
         self.positions = self.get_positions()
+        self.masses = self.get_masses()
+        self.frozens = self.get_frozens()
         self.calculator = None
         self.N = 0
 
@@ -97,6 +101,9 @@ class Atom_Collection():
     def plot(self, ax):
         return [atom.plot(ax=ax) for atom in self.atoms]
     
+    def get_frozens(self):
+        return np.array([atom.frozen for atom in self.atoms])
+
     def get_positions(self):
         return np.array([atom.pos for atom in self.atoms])
 
@@ -152,27 +159,153 @@ class Atom_Collection():
     def freeze_atoms(self, indices):
         for index in indices:
             self.atoms[index].frozen = True
+        self.frozens=self.get_frozens()
     
     def unfreeze_atoms(self, indices):
         for index in indices:
             self.atoms[index].frozen = False
+        self.frozens=self.get_frozens()
 
     def get_forces(self):
         if self.calculator == None:
             raise Exception("No calculator has been assigned yet, therefore no force estimate can be given")
         else:
-            return self.calculator.forces(self)
+            return self.calculator.forces(self.positions)
 
     def set_colors(self, colors):
         for atom, color in zip(self.atoms, colors):
             atom.color=color
 
     def get_distances(self):
-        pos = self.get_positions()
-        return pdist(pos)
+        return pdist(self.positions)
 
     def get_potential_energy(self):
         if self.calculator == None:
             raise Exception("No calculator has been assigned yet, therefore no energy estimate can be given")
         else:
-            return self.calculator.energy(self)
+            return self.calculator.energy(self.positions)
+
+class Atom_File_handler_new():
+    def __init__(self) -> None:
+        pass
+    
+    def save_atom_collections(self, atom_cols, filename):
+        try:
+            file_obj = open(filename, "xb")
+        except:
+            file_obj = open(filename, "ab")
+        pickle.dump(atom_cols, file=file_obj)
+
+    def load_atom_collections(self, filename):
+        try:
+            file_obj = open(filename, "rb")
+        except:
+            raise Exception(f"The specified file: {filename} : Does not exist")
+        atom_cols = pickle.load(file_obj)
+        return atom_cols
+
+class Atom_File_handler():
+    save_attributes = {"position": "\t\t\t\t\t\t\t\t\t",
+                       "velocity": "\t\t\t\t\t\t\t\t\t",
+                       "frozen_status": "\t\t",
+                       "mass": "\t\t"}
+    
+    load_attributes = {"position": [0,1],
+                       "velocity": [2,3],
+                       "frozen_status": [4],
+                       "mass": [5]}
+
+    def __init__(self) -> None:
+        pass
+    
+    def save_atom_collections(self, atom_cols, filename, save_attributes={}):
+        if len(save_attributes) == 0:
+            save_attributes = self.save_attributes
+        else:
+            pass
+        try:
+            file_obj = open(filename, "x")
+            header = self.create_header_line(save_attributes=save_attributes)
+            file_obj.write(header)
+        except:
+            file_obj = open(filename, "a")
+        for atom_col in atom_cols:
+            for atom in atom_col:
+                string_write = ""
+                for save_attribute in save_attributes:
+                    add_string = self.write_string(atom=atom, save_attribute=save_attribute)
+                    string_write+=add_string
+                string_write+="\n"
+                file_obj.write(string_write)
+            file_obj.write("\n")
+
+    def create_header_line(self, save_attributes):
+        header = ""
+        for save_attribute in save_attributes:
+            header+=save_attribute+save_attributes[save_attribute]
+        return header+"\n"
+    
+    def write_string(self, atom, save_attribute):
+        if save_attribute == "position":
+            string = ""
+            for coord in atom.pos:
+                string+=f"{coord}\t"
+            return string
+        
+        if save_attribute == "velocity":
+            string = ""
+            for coord in atom.velocity:
+                string+=f"{coord}\t"
+            return string
+        if save_attribute == "frozen_status":
+            return f"{atom.frozen}\t"
+        if save_attribute == "mass":
+            return f"{atom.mass}\t"
+
+    def set_atom_params(self, string_splitted, atom, load_attributes):
+        for load_attribute in load_attributes:
+            if load_attribute == "position":
+                pos = np.zeros(2)
+                for i, index in enumerate(load_attributes[load_attribute]):
+                    pos[i] = float(string_splitted[index])
+                atom.pos = pos
+            if load_attribute == "velocity":
+                vel = np.zeros(2)
+                for i, index in enumerate(load_attributes[load_attribute]):
+                    vel[i] = float(string_splitted[index])
+                atom.velocity = vel
+            if load_attribute == "mass":
+                mass = 0.0
+                for i, index in enumerate(load_attributes[load_attribute]):
+                    mass = float(string_splitted[index])
+                atom.mass = mass
+            if load_attribute == "frozen_status":
+                status = False
+                for i, index in enumerate(load_attributes[load_attribute]):
+                    status = bool(string_splitted[index])
+                atom.frozen = status
+
+    def load_atom_collections(self, filename, load_attributes={}):
+        if len(load_attributes) == 0:
+            load_attributes = self.load_attributes
+        else:
+            pass
+
+        file_obj = open(filename, "r")
+        atom_list = []
+        atom_cols = []
+        for i, line in enumerate(file_obj):
+            if i == 0:
+                pass
+            else:
+                splitted_string = line.split("\t")
+                if splitted_string[0] == "\n":
+                    atom_col = Atom_Collection(atomlist=atom_list)
+                    atom_cols.append(atom_col)
+                    atom_list = []
+                else:
+                    atom = Atom()
+                    self.set_atom_params(string_splitted=splitted_string, atom=atom, load_attributes=load_attributes)
+                    atom_list.append(atom)
+        return atom_cols
+            

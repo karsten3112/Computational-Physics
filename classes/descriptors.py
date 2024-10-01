@@ -3,6 +3,11 @@ from classes.atoms import Atom, Atom_Collection
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import squareform
 
+
+class Descriptor():
+    def __init__(self) -> None:
+        pass
+    
 class DistanceMoments():
     def __init__(self, color="C5") -> None:
         self.xwidth = 1.0
@@ -132,4 +137,8 @@ class CoulombMatrixSpectrum():
 
 class Binning_Handler():
     def __init__(self) -> None:
+        pass
+
+    @
+    def hej(self):
         pass
