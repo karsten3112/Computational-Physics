@@ -139,6 +139,5 @@ class Binning_Handler():
     def __init__(self) -> None:
         pass
 
-    @
     def hej(self):
         pass
