@@ -135,6 +135,7 @@ class CoulombMatrixSpectrum():
         ax.set_ylim([-2,8])
         ax.set_title(self.__class__.__name__)
 
+
 class Binning_Handler():
     def __init__(self) -> None:
         pass

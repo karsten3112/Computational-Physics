@@ -1,6 +1,82 @@
 import numpy as np
 import copy
-from classes.atoms import Atom, Atom_Collection
+from classes.atoms import Atom, Atom_Collection, PBC_handler
+
+
+def random_dir_step(N, step_size):
+    vs = np.random.rand(N)*2.0*np.pi
+    res_vec = np.zeros(shape=(N,2))
+    res_vec[:,0]+=step_size*np.cos(vs)
+    res_vec[:,1]+=step_size*np.sin(vs)
+    return res_vec
+
+def uniform_step(N, step_range):
+    poses = np.random.rand(N,2)*step_range - 1.0/2.0*step_range
+    return poses
+
+class Metropol_new():
+    kb = 1.0
+    def __init__(self, atom_col, T) -> None:
+        self.N = atom_col.size
+        self.pbc_handler = atom_col.pbc_handler
+        self.calculator = atom_col.calculator
+        self.init_pos = atom_col.get_positions()
+        self.pbc = atom_col.pbc
+        self.T = T
+        self.frozens = (atom_col.get_frozens() == False).astype(int)
+        self.best_E = 0.0
+        self.best_pos = None
+
+    def run(self, N_max, E_limit, start_quench, proposal_func=random_dir_step, track=False, prop_args=(0.1,)):
+        i = 0
+        E_currently = self.calculator.energy(self.init_pos, self.pbc, self.pbc_handler)
+        self.best_E = E_currently
+        pos_currently = self.init_pos*1.0
+        self.best_pos = pos_currently
+        poses = []
+        energies = []
+        prop_func = lambda *prop_args: proposal_func(self.N, *prop_args)
+        while i < N_max and E_currently >= E_limit:
+            if self.pbc == True:
+                proposal_pos = self.pbc_handler.restrict_positions(pos_currently + prop_func(*prop_args)*self.frozens[:,None])
+            else:
+                proposal_pos = pos_currently + prop_func(*prop_args)*self.frozens[:,None]
+
+            E_new = self.calculator.energy(proposal_pos, self.pbc, self.pbc_handler)
+            #print(E_new)
+            p = np.random.rand(1)
+            acc_prob = np.exp(-(E_new-E_currently)/self.T)
+            
+            if i > start_quench:
+                if E_new < E_currently:
+                    #print(E_new, E_currently)
+                    pos_currently = proposal_pos
+                    E_currently = E_new
+                else:
+                    pass
+                    #pos_currently = pos_currently
+            else:
+                if p < acc_prob:
+                    pos_currently = proposal_pos
+                    E_currently = E_new
+                else:
+                    pass
+                    #pos_currently = pos_currently
+            #print(E_currently, E_new)
+            if E_currently < self.best_E:
+                self.best_E = E_currently
+                self.best_pos = pos_currently
+            
+            if track == True:
+                poses.append(pos_currently)
+                energies.append(E_currently)
+            else:
+                poses = [self.best_pos]
+                energies = [self.best_E]
+            i+=1
+        return poses, energies
+
+
 
 class Metropol():
     kb = 1.0

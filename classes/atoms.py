@@ -57,16 +57,27 @@ class Atom():
             self.pos+=r
 
 
+
+
 class Atom_Collection():
-    def __init__(self, atomlist) -> None:
+    def __init__(self, atomlist, unit_cell=None, pbc=False) -> None:
         self.atoms = atomlist
         self.size = len(atomlist)
-        self.velocities = self.get_velocities()
-        self.positions = self.get_positions()
+        self.pbc = pbc
+        self.unit_cell = unit_cell
         self.masses = self.get_masses()
         self.frozens = self.get_frozens()
+        self.velocities = self.get_velocities()
         self.calculator = None
         self.N = 0
+
+        if pbc == True:
+            self.pbc_handler = PBC_handler(unit_cell_vectors=unit_cell)
+            restricted_positions = self.pbc_handler.restrict_positions(np.array([atom.pos for atom in atomlist]))
+            self.set_positions(pos=restricted_positions)
+        if pbc == False:
+            self.positions = self.get_positions()
+            self.pbc_handler = None
 
     def __len__(self):
         return len(self.atoms)
@@ -98,14 +109,27 @@ class Atom_Collection():
             for atom in self.atoms:
                 atom.plot_elem = new_axes
 
-    def plot(self, ax):
+    def plot(self, ax, plot_cell=True):
+        if plot_cell == True:
+            try:
+                l1,l2 = self.unit_cell
+                l_end = l1+l2
+                for l in [l1, l2]:
+                    ax.plot([0.0, l[0]], [0.0, l[1]], "--", c='k')
+                    ax.plot([l[0], l_end[0]],[l[1], l_end[1]], "--", c='k')
+            except:
+                raise Exception("No proper unit_cell has been supplied and cannot be plotted")
         return [atom.plot(ax=ax) for atom in self.atoms]
     
     def get_frozens(self):
         return np.array([atom.frozen for atom in self.atoms])
 
     def get_positions(self):
-        return np.array([atom.pos for atom in self.atoms])
+        positions = np.array([atom.pos for atom in self.atoms])
+        #if self.pbc == True:
+        #    return "hej"
+        #else:
+        return positions
 
     def get_velocities(self):
         return np.array([atom.velocity for atom in self.atoms])
@@ -177,15 +201,49 @@ class Atom_Collection():
             atom.color=color
 
     def get_distances(self):
-        return pdist(self.positions)
-
+        if self.pbc == True:
+            return self.pbc_handler.get_periodic_dist(atom_pos=self.positions)
+        else:
+            return pdist(self.positions)
+        
     def get_potential_energy(self):
         if self.calculator == None:
             raise Exception("No calculator has been assigned yet, therefore no energy estimate can be given")
         else:
-            return self.calculator.energy(self.positions)
+            return self.calculator.energy(self.positions, self.pbc, self.pbc_handler)
 
-class Atom_File_handler_new():
+
+
+class PBC_handler():
+    def __init__(self, unit_cell_vectors):
+        self.v1, self.v2 = unit_cell_vectors
+        print("NOTE VECTORS SUPPLIED ALSO HAVE TO BE ORDERED, so (v1 --> [L,0]) and (v2 --> [0,L])")
+        if np.dot(self.v1, self.v2).astype(int) != 0:
+            raise Exception("unit_cell vectors are not orthogonal, and the algorithm will therefore not work")
+        self.d1 = np.linalg.norm(self.v1)
+        self.d2 = np.linalg.norm(self.v2)
+
+    def restrict_positions(self, atom_pos):
+        new_poses = atom_pos*1.0
+        #print(new_poses)
+        for i, d in enumerate([self.d1, self.d2]):
+            res_coord_big = (atom_pos[:,i] > d).astype(int)*(-d)
+            res_coord_less = (atom_pos[:,i] <= 0.0).astype(int)*(d) #PERHAPS ADD SUCH THAT THE UNITCELL CAN HAVE ARBITRARY ORIGIN
+            new_poses[:,i]+=res_coord_big+res_coord_less
+        return new_poses
+
+    def get_periodic_dist(self, atom_pos):
+        dists_res = []
+        for i, d in enumerate([self.d1, self.d2]):
+            dists = pdist(atom_pos[:,i].reshape(-1,1))
+            res_coord_big = (dists > d/2.0).astype(int)*(-d)
+            res_coord_less = (dists < -d/2.0).astype(int)*(d)
+            dists_res.append(dists+res_coord_big+res_coord_less)
+        #print(np.array(dists_res))
+        return np.linalg.norm(np.array(dists_res).T, axis=1)#np.array(dists_res).reshape(len(dists_res[0]), 2)#np.linalg.norm(np.array(dists_res).reshape(len(dists_res[0]), 2), axis=-1)
+    
+
+class Atom_File_handler():
     def __init__(self) -> None:
         pass
     
@@ -203,109 +261,3 @@ class Atom_File_handler_new():
             raise Exception(f"The specified file: {filename} : Does not exist")
         atom_cols = pickle.load(file_obj)
         return atom_cols
-
-class Atom_File_handler():
-    save_attributes = {"position": "\t\t\t\t\t\t\t\t\t",
-                       "velocity": "\t\t\t\t\t\t\t\t\t",
-                       "frozen_status": "\t\t",
-                       "mass": "\t\t"}
-    
-    load_attributes = {"position": [0,1],
-                       "velocity": [2,3],
-                       "frozen_status": [4],
-                       "mass": [5]}
-
-    def __init__(self) -> None:
-        pass
-    
-    def save_atom_collections(self, atom_cols, filename, save_attributes={}):
-        if len(save_attributes) == 0:
-            save_attributes = self.save_attributes
-        else:
-            pass
-        try:
-            file_obj = open(filename, "x")
-            header = self.create_header_line(save_attributes=save_attributes)
-            file_obj.write(header)
-        except:
-            file_obj = open(filename, "a")
-        for atom_col in atom_cols:
-            for atom in atom_col:
-                string_write = ""
-                for save_attribute in save_attributes:
-                    add_string = self.write_string(atom=atom, save_attribute=save_attribute)
-                    string_write+=add_string
-                string_write+="\n"
-                file_obj.write(string_write)
-            file_obj.write("\n")
-
-    def create_header_line(self, save_attributes):
-        header = ""
-        for save_attribute in save_attributes:
-            header+=save_attribute+save_attributes[save_attribute]
-        return header+"\n"
-    
-    def write_string(self, atom, save_attribute):
-        if save_attribute == "position":
-            string = ""
-            for coord in atom.pos:
-                string+=f"{coord}\t"
-            return string
-        
-        if save_attribute == "velocity":
-            string = ""
-            for coord in atom.velocity:
-                string+=f"{coord}\t"
-            return string
-        if save_attribute == "frozen_status":
-            return f"{atom.frozen}\t"
-        if save_attribute == "mass":
-            return f"{atom.mass}\t"
-
-    def set_atom_params(self, string_splitted, atom, load_attributes):
-        for load_attribute in load_attributes:
-            if load_attribute == "position":
-                pos = np.zeros(2)
-                for i, index in enumerate(load_attributes[load_attribute]):
-                    pos[i] = float(string_splitted[index])
-                atom.pos = pos
-            if load_attribute == "velocity":
-                vel = np.zeros(2)
-                for i, index in enumerate(load_attributes[load_attribute]):
-                    vel[i] = float(string_splitted[index])
-                atom.velocity = vel
-            if load_attribute == "mass":
-                mass = 0.0
-                for i, index in enumerate(load_attributes[load_attribute]):
-                    mass = float(string_splitted[index])
-                atom.mass = mass
-            if load_attribute == "frozen_status":
-                status = False
-                for i, index in enumerate(load_attributes[load_attribute]):
-                    status = bool(string_splitted[index])
-                atom.frozen = status
-
-    def load_atom_collections(self, filename, load_attributes={}):
-        if len(load_attributes) == 0:
-            load_attributes = self.load_attributes
-        else:
-            pass
-
-        file_obj = open(filename, "r")
-        atom_list = []
-        atom_cols = []
-        for i, line in enumerate(file_obj):
-            if i == 0:
-                pass
-            else:
-                splitted_string = line.split("\t")
-                if splitted_string[0] == "\n":
-                    atom_col = Atom_Collection(atomlist=atom_list)
-                    atom_cols.append(atom_col)
-                    atom_list = []
-                else:
-                    atom = Atom()
-                    self.set_atom_params(string_splitted=splitted_string, atom=atom, load_attributes=load_attributes)
-                    atom_list.append(atom)
-        return atom_cols
-            
