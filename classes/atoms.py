@@ -109,7 +109,7 @@ class Atom_Collection():
             for atom in self.atoms:
                 atom.plot_elem = new_axes
 
-    def plot(self, ax, plot_cell=True):
+    def plot(self, ax, plot_cell=False):
         if plot_cell == True:
             try:
                 l1,l2 = self.unit_cell
@@ -121,15 +121,19 @@ class Atom_Collection():
                 raise Exception("No proper unit_cell has been supplied and cannot be plotted")
         return [atom.plot(ax=ax) for atom in self.atoms]
     
+    def plot_cells(self, ax, displacement_vectors, size=20):
+        self.set_sizes(new_sizes=[size for i in range(len(self))])
+        for i, disp_vector in enumerate(displacement_vectors):
+            if i == 0:
+                self.plot(ax=ax, plot_cell=True)
+            else:
+                ax.plot(self.positions[:,0]+disp_vector[0], self.positions[:,1]+disp_vector[1],'o', c="C1", ms=size, alpha=0.5, markeredgecolor="k")
+
     def get_frozens(self):
         return np.array([atom.frozen for atom in self.atoms])
 
     def get_positions(self):
-        positions = np.array([atom.pos for atom in self.atoms])
-        #if self.pbc == True:
-        #    return "hej"
-        #else:
-        return positions
+        return np.array([atom.pos for atom in self.atoms])
 
     def get_velocities(self):
         return np.array([atom.velocity for atom in self.atoms])
@@ -239,8 +243,7 @@ class PBC_handler():
             res_coord_big = (dists > d/2.0).astype(int)*(-d)
             res_coord_less = (dists < -d/2.0).astype(int)*(d)
             dists_res.append(dists+res_coord_big+res_coord_less)
-        #print(np.array(dists_res))
-        return np.linalg.norm(np.array(dists_res).T, axis=1)#np.array(dists_res).reshape(len(dists_res[0]), 2)#np.linalg.norm(np.array(dists_res).reshape(len(dists_res[0]), 2), axis=-1)
+        return np.linalg.norm(np.array(dists_res).T, axis=1)
     
 
 class Atom_File_handler():

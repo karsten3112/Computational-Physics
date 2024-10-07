@@ -63,6 +63,84 @@ class MD_Simulator():
         else:
             return [atom_col]
 
+
+class MD_simulator_new1():
+    kb = 1.0
+    def __init__(self, atom_col, temp) -> None:
+        self.calculator = atom_col.calculator
+        self.masses = atom_col.get_masses()
+        self.frozens = (atom_col.get_frozens() == False).astype(int)
+        self.init_pos = atom_col.get_positions()
+        self.init_velocities = atom_col.get_velocities()
+        self.pbc_handler = atom_col.pbc_handler
+        self.pbc = atom_col.pbc
+        self.temp = temp
+
+    def verlet_integrate(self, positions, velocities, time_step):
+        acc = self.calculator.forces(positions)/self.masses[:,None]
+        if self.pbc == True:
+            new_poses = self.pbc_handler.restrict_positions(positions + (velocities*time_step + 1.0/2.0*acc*time_step**2)*self.frozens[:,None])
+        else:
+            new_poses = positions + (velocities*time_step + 1.0/2.0*acc*time_step**2)*self.frozens[:,None]
+        
+        acc_new = self.calculator.forces(new_poses)/self.masses[:,None]
+        new_vels = velocities + (1.0/2.0*(acc + acc_new)*time_step)*self.frozens[:,None]
+    
+        return new_poses, new_vels
+
+    def euler_integrate(self, positions, velocities, time_step):
+        pass
+
+    def run_N2_integration(self, N_steps, time_step=0.01, t_init=0.0, track=True, method="verlet_integration"):
+        current_pos = self.init_pos*1.0
+        current_vel = self.init_velocities*1.0
+        time = t_init
+        result_poses = [current_pos]
+        result_vels = [current_vel]
+        ts = [time]
+        for i in range(N_steps):
+            if method == "verlet_integration":
+                current_pos, current_vel = self.verlet_integrate(positions=current_pos, velocities=current_vel, time_step=time_step)
+            if method == "euler_integration":
+                pass
+            time+=time_step
+            if track == True:
+                result_poses.append(current_pos)
+                result_vels.append(current_vel)
+                ts.append(time)
+            else:
+                result_poses = [current_pos]
+                result_vels = [current_vel]
+                ts = [time]
+        return np.array(ts), np.array(result_poses), np.array(result_vels)
+
+    def run_MD_simulation(self, t_init=0.0, N_steps=1000, time_step=0.01, track_steps=True, method="verlet_integration", integrate_steps=50):
+        current_pos = self.init_pos*1.0
+        time = t_init
+        result_poses = [current_pos]
+        result_vels = [self.init_velocities]
+        ts = [time]
+        for i in range(N_steps):
+            current_vel = np.random.randn(len(current_pos),2)*np.sqrt(self.kb*self.temp/self.masses[:,None])
+            for j in range(integrate_steps):
+                if method == "verlet_integration":
+                    current_pos, current_vel = self.verlet_integrate(positions=current_pos, velocities=current_vel, time_step=time_step)
+                if method == "euler_integration":
+                    pass
+                time+=time_step
+                if track_steps == True:
+                    result_poses.append(current_pos)
+                    result_vels.append(current_vel)
+                    ts.append(time)
+                else:
+                    result_poses = [current_pos]
+                    result_vels = [current_vel]
+                    ts = [time]
+        return np.array(ts), np.array(result_poses), np.array(result_vels)
+    
+    def convert_to_atom_cols(self, atom_col_for_copy, positions, velocities):
+        pass
+            
 class MD_simulator_new():
     kb = 1.0
     def __init__(self, atom_col) -> None:

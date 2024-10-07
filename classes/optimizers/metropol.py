@@ -43,26 +43,22 @@ class Metropol_new():
                 proposal_pos = pos_currently + prop_func(*prop_args)*self.frozens[:,None]
 
             E_new = self.calculator.energy(proposal_pos, self.pbc, self.pbc_handler)
-            #print(E_new)
             p = np.random.rand(1)
             acc_prob = np.exp(-(E_new-E_currently)/self.T)
             
             if i > start_quench:
                 if E_new < E_currently:
-                    #print(E_new, E_currently)
                     pos_currently = proposal_pos
                     E_currently = E_new
                 else:
                     pass
-                    #pos_currently = pos_currently
             else:
                 if p < acc_prob:
                     pos_currently = proposal_pos
                     E_currently = E_new
                 else:
                     pass
-                    #pos_currently = pos_currently
-            #print(E_currently, E_new)
+        
             if E_currently < self.best_E:
                 self.best_E = E_currently
                 self.best_pos = pos_currently
@@ -74,7 +70,7 @@ class Metropol_new():
                 poses = [self.best_pos]
                 energies = [self.best_E]
             i+=1
-        return poses, energies
+        return np.array(poses), np.array(energies)
 
 
 
