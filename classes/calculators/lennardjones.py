@@ -16,8 +16,14 @@ class LennardJones():
         return 4.0*self.eps0*(t1 - t2)
 
     def forces(self, pos, pbc, pbc_handler):
-        diff = pos[np.newaxis, :, :] - pos[:, np.newaxis, :]
+        if pbc == True:
+            diff = pbc_handler.get_periodic_dist_vector(atom_pos=pos)
+            #print(diff)
+        else:
+            diff = pos[np.newaxis, :, :] - pos[:, np.newaxis, :]
+            #print(diff)
         r = np.sqrt(np.sum(diff**2, axis=-1))
+        #print(r)
         np.fill_diagonal(r, np.inf)
         force_magnitude = self._dV_dr(r)
         forces = np.sum(force_magnitude[..., np.newaxis] * diff / \

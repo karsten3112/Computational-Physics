@@ -50,13 +50,15 @@ class Atom():
             pass
         else:
             self.pos = r
+    
+    def set_restricted_position(self, r):
+        self.pos = r
+    
     def move(self, r):
         if self.frozen == True:
             pass
         else:
             self.pos+=r
-
-
 
 
 class Atom_Collection():
@@ -121,13 +123,22 @@ class Atom_Collection():
                 raise Exception("No proper unit_cell has been supplied and cannot be plotted")
         return [atom.plot(ax=ax) for atom in self.atoms]
     
-    def plot_cells(self, ax, displacement_vectors, size=20):
+    def plot_cells(self, ax, displacement_vectors="auto", size=50):
         self.set_sizes(new_sizes=[size for i in range(len(self))])
-        for i, disp_vector in enumerate(displacement_vectors):
-            if i == 0:
-                self.plot(ax=ax, plot_cell=True)
-            else:
-                ax.plot(self.positions[:,0]+disp_vector[0], self.positions[:,1]+disp_vector[1],'o', c="C1", ms=size, alpha=0.5, markeredgecolor="k")
+        l1, l2 = self.unit_cell
+        if displacement_vectors == "auto":
+            for i in [-1.0, 0.0, 1.0]:
+                for j in [-1.0, 0.0, 1.0]:
+                    if i == 0.0 and j == 0.0:
+                        self.plot(ax=ax, plot_cell=True)
+                    else:
+                        ax.plot(self.positions[:,0]+i*l1[0], self.positions[:,1]+j*l2[1],'o', c="C1", ms=size, alpha=0.5, markeredgecolor="k")
+        else:    
+            for i, disp_vector in enumerate(displacement_vectors):
+                if i == 0:
+                    self.plot(ax=ax, plot_cell=True)
+                else:
+                    ax.plot(self.positions[:,0]+disp_vector[0], self.positions[:,1]+disp_vector[1],'o', c="C1", ms=size, alpha=0.5, markeredgecolor="k")
 
     def get_frozens(self):
         return np.array([atom.frozen for atom in self.atoms])
@@ -156,8 +167,13 @@ class Atom_Collection():
         self.positions = self.get_positions()
 
     def set_positions(self, pos):
-        for atom, p in zip(self.atoms, pos):
-            atom.set_position(p)
+        if self.pbc == True:
+            restricted_pos = self.pbc_handler.restrict_positions(atom_pos=pos)
+            for atom, p in zip(self.atoms, restricted_pos):
+                atom.set_restricted_position(p)
+        else:
+            for atom, p in zip(self.atoms, pos):
+                atom.set_position(p)
         self.positions = self.get_positions()
 
     def set_velocities(self, vels):
@@ -198,7 +214,7 @@ class Atom_Collection():
         if self.calculator == None:
             raise Exception("No calculator has been assigned yet, therefore no force estimate can be given")
         else:
-            return self.calculator.forces(self.positions)
+            return self.calculator.forces(self.positions, self.pbc, self.pbc_handler)
 
     def set_colors(self, colors):
         for atom, color in zip(self.atoms, colors):
@@ -218,6 +234,15 @@ class Atom_Collection():
 
 
 
+def create_atom_col_copies(atom_col, positions, velocities):
+    atom_cols = []
+    for pos, vel in zip(positions, velocities):
+        atom_col_copy = copy.deepcopy(atom_col)
+        atom_col_copy.set_positions(pos)
+        atom_col_copy.set_velocities(vel)
+        atom_cols.append(atom_col_copy)
+    return atom_cols
+
 class PBC_handler():
     def __init__(self, unit_cell_vectors):
         self.v1, self.v2 = unit_cell_vectors
@@ -236,6 +261,15 @@ class PBC_handler():
             new_poses[:,i]+=res_coord_big+res_coord_less
         return new_poses
 
+    def get_periodic_dist_vector(self, atom_pos):
+        diff = atom_pos[np.newaxis, :, :] - atom_pos[:, np.newaxis, :]
+        diff_shaped = diff.reshape(len(atom_pos)**2, 2)
+        for i, d in enumerate([self.d1, self.d2]):
+            res_coord_big = (diff_shaped[:,i] > d/2.0).astype(int)*(-d)
+            res_coord_less = (diff_shaped[:,i] < -d/2.0).astype(int)*(d)
+            diff_shaped[:,i]+=res_coord_big+res_coord_less
+        return diff.reshape(len(atom_pos), len(atom_pos), 2)
+
     def get_periodic_dist(self, atom_pos):
         dists_res = []
         for i, d in enumerate([self.d1, self.d2]):
@@ -243,6 +277,7 @@ class PBC_handler():
             res_coord_big = (dists > d/2.0).astype(int)*(-d)
             res_coord_less = (dists < -d/2.0).astype(int)*(d)
             dists_res.append(dists+res_coord_big+res_coord_less)
+        
         return np.linalg.norm(np.array(dists_res).T, axis=1)
     
 

@@ -32,7 +32,7 @@ class Metropol_new():
         E_currently = self.calculator.energy(self.init_pos, self.pbc, self.pbc_handler)
         self.best_E = E_currently
         pos_currently = self.init_pos*1.0
-        self.best_pos = pos_currently
+        self.best_pos = pos_currently*1.0
         poses = []
         energies = []
         prop_func = lambda *prop_args: proposal_func(self.N, *prop_args)
@@ -61,7 +61,7 @@ class Metropol_new():
         
             if E_currently < self.best_E:
                 self.best_E = E_currently
-                self.best_pos = pos_currently
+                self.best_pos = pos_currently*1.0
             
             if track == True:
                 poses.append(pos_currently)
@@ -71,7 +71,7 @@ class Metropol_new():
                 energies = [self.best_E]
             i+=1
         return np.array(poses), np.array(energies)
-
+    
 
 
 class Metropol():
