@@ -125,7 +125,6 @@ class Metropol():
             if best_col.get_potential_energy() > self.atom_col.get_potential_energy():
                 best_col = self.atom_col
                 #print(best_col.get_potential_energy())
-            
             i+=1
         
         if track == True:

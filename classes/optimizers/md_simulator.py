@@ -1,6 +1,7 @@
 import numpy as np
 import copy
-from classes.atoms import Atom, Atom_Collection
+from classes.atoms import Atom, Atom_Collection, PBC_handler1
+from scipy.integrate import solve_ivp
 
 class MD_Simulator():
     kb = 1.0
@@ -67,6 +68,7 @@ class MD_Simulator():
 class MD_simulator_new1():
     kb = 1.0
     def __init__(self, atom_col, temp) -> None:
+        self.temp = temp
         self.calculator = atom_col.calculator
         self.masses = atom_col.get_masses()
         self.frozens = (atom_col.get_frozens() == False).astype(int)
@@ -74,18 +76,22 @@ class MD_simulator_new1():
         self.init_velocities = atom_col.get_velocities()
         self.pbc_handler = atom_col.pbc_handler
         self.pbc = atom_col.pbc
-        self.temp = temp
+        if self.pbc == True:
+            self.init_volume = atom_col.get_volume()
+            self.init_stress = atom_col.get_stress_tensor()
+            self.init_unit_cell = atom_col.unit_cell
+        else:
+            self.init_volume = None
+            self.init_stress = None
 
     def verlet_integrate(self, positions, velocities, time_step):
-        acc = self.calculator.forces(positions)/self.masses[:,None]
+        acc = self.calculator.forces(positions, pbc=self.pbc, pbc_handler=self.pbc_handler)/self.masses[:,None]
         if self.pbc == True:
             new_poses = self.pbc_handler.restrict_positions(positions + (velocities*time_step + 1.0/2.0*acc*time_step**2)*self.frozens[:,None])
         else:
             new_poses = positions + (velocities*time_step + 1.0/2.0*acc*time_step**2)*self.frozens[:,None]
-        
-        acc_new = self.calculator.forces(new_poses)/self.masses[:,None]
+        acc_new = self.calculator.forces(new_poses, pbc=self.pbc, pbc_handler=self.pbc_handler)/self.masses[:,None]
         new_vels = velocities + (1.0/2.0*(acc + acc_new)*time_step)*self.frozens[:,None]
-    
         return new_poses, new_vels
 
     def euler_integrate(self, positions, velocities, time_step):
@@ -114,14 +120,28 @@ class MD_simulator_new1():
                 ts = [time]
         return np.array(ts), np.array(result_poses), np.array(result_vels)
 
-    def run_MD_simulation(self, t_init=0.0, N_steps=1000, time_step=0.01, track_steps=True, method="verlet_integration", integrate_steps=50):
+    def run_MD_simulation(self, 
+                          t_init=0.0, 
+                          N_steps=1000,
+                          apply_thermostat=True,
+                          apply_barostat=False, 
+                          time_step=0.01, 
+                          track_steps=True, 
+                          method="verlet_integration", 
+                          integrate_steps=50):
+        
+        #self.pbc_handler.update_params(new_unit_cell=self.init_unit_cell)
         current_pos = self.init_pos*1.0
+        current_vel = self.init_velocities*1.0
+        current_stress = self.init_stress*1.0
+        current_vol = self.init_volume
         time = t_init
         result_poses = [current_pos]
-        result_vels = [self.init_velocities]
+        result_vels = [current_vel]
+        result_vols = [current_vol]
+        result_stresses = [current_stress]
         ts = [time]
         for i in range(N_steps):
-            current_vel = np.random.randn(len(current_pos),2)*np.sqrt(self.kb*self.temp/self.masses[:,None])
             for j in range(integrate_steps):
                 if method == "verlet_integration":
                     current_pos, current_vel = self.verlet_integrate(positions=current_pos, velocities=current_vel, time_step=time_step)
@@ -131,15 +151,37 @@ class MD_simulator_new1():
                 if track_steps == True:
                     result_poses.append(current_pos)
                     result_vels.append(current_vel)
+                    if apply_barostat == True:
+                        result_stresses.append(self.calculator.stress_tensor(pos=current_pos, pbc=self.pbc, pbc_handler=self.pbc_handler, step_size=1e-3))
+                        result_vols.append(self.pbc_handler.get_volume())
                     ts.append(time)
                 else:
                     result_poses = [current_pos]
                     result_vels = [current_vel]
                     ts = [time]
-        return np.array(ts), np.array(result_poses), np.array(result_vels)
+                    if apply_barostat == True:
+                        result_stresses = [self.calculator.stress_tensor(pos=current_pos, pbc=self.pbc, pbc_handler=self.pbc_handler, step_size=1e-3)]
+                        result_vols = [self.pbc_handler.get_volume()]
+            if apply_thermostat == True:
+                current_vel = np.random.randn(len(current_pos),2)*np.sqrt(self.kb*self.temp/self.masses[:,None])
+            if apply_barostat == True:
+                current_pos = self.pbc_handler.restrict_positions(self.barostat(current_pos=current_pos, gamma=1e-5))
+
+        
+        if apply_barostat == True:
+            #self.pbc_handler.update_params(new_unit_cell=self.init_unit_cell)
+            return np.array(ts), np.array(result_poses), np.array(result_vols), np.array(result_stresses), np.array(result_vels)
+        else:
+            return np.array(ts), np.array(result_poses), np.array(result_vels)
     
-    def convert_to_atom_cols(self, atom_col_for_copy, positions, velocities):
-        pass
+    def barostat(self, current_pos, target_stress=np.zeros(shape=(2,2)), gamma=1e-5, stepsize=1e-3):
+        current_stress = self.calculator.stress_tensor(pos=current_pos, pbc=self.pbc, pbc_handler=self.pbc_handler, step_size=stepsize)
+        current_scale = (current_stress-target_stress)*gamma
+        current_pos = self.pbc_handler.scale_cell_and_coords(atom_pos=current_pos, scale_x=current_scale[0,0],scale_y=current_scale[1,1]) #remember that barostat scales the cell of PBC_handler and needs to be readjusted if needed
+        return current_pos
+    
+
+
             
 class MD_simulator_new():
     kb = 1.0

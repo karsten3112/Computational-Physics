@@ -72,14 +72,14 @@ class Atom_Collection():
         self.velocities = self.get_velocities()
         self.calculator = None
         self.N = 0
-
         if pbc == True:
-            self.pbc_handler = PBC_handler(unit_cell_vectors=unit_cell)
-            restricted_positions = self.pbc_handler.restrict_positions(np.array([atom.pos for atom in atomlist]))
-            self.set_positions(pos=restricted_positions)
+            self.pbc_handler = PBC_handler1(unit_cell_vectors=unit_cell)
+            self.set_positions(pos=np.array([atom.pos for atom in atomlist]))
+            self.volume = self.get_volume()
         if pbc == False:
             self.positions = self.get_positions()
             self.pbc_handler = None
+            self.volume = None
 
     def __len__(self):
         return len(self.atoms)
@@ -127,12 +127,14 @@ class Atom_Collection():
         self.set_sizes(new_sizes=[size for i in range(len(self))])
         l1, l2 = self.unit_cell
         if displacement_vectors == "auto":
-            for i in [-1.0, 0.0, 1.0]:
-                for j in [-1.0, 0.0, 1.0]:
+            for i in [-2.0, -1.0, 0.0, 1.0, 2.0]:
+                for j in [-2.0,-1.0, 0.0, 1.0, 2.0]:
                     if i == 0.0 and j == 0.0:
                         self.plot(ax=ax, plot_cell=True)
                     else:
-                        ax.plot(self.positions[:,0]+i*l1[0], self.positions[:,1]+j*l2[1],'o', c="C1", ms=size, alpha=0.5, markeredgecolor="k")
+                        displacement = l1*i + l2*j
+                        pos_plot = self.positions + displacement
+                        ax.plot(pos_plot[:,0], pos_plot[:,1],'o', c="C1", ms=size, alpha=0.5, markeredgecolor="k")
         else:    
             for i, disp_vector in enumerate(displacement_vectors):
                 if i == 0:
@@ -209,16 +211,29 @@ class Atom_Collection():
         for index in indices:
             self.atoms[index].frozen = False
         self.frozens=self.get_frozens()
+    
+    def set_colors(self, colors):
+        for atom, color in zip(self.atoms, colors):
+            atom.color=color
+    
+    def scale_volume(self, scale_x=1.0, scale_y=1.0):
+        if self.pbc == True:
+            scaled_positions = self.pbc_handler.scale_cell_and_coords(self.positions, scale_x=scale_x, scale_y=scale_y)
+            self.set_positions(scaled_positions)
+            self.unit_cell = (self.pbc_handler.v1, self.pbc_handler.v2)
+            self.get_volume()
+    
+    def get_volume(self):
+        if self.pbc == True:
+            vol = self.pbc_handler.get_volume()
+            self.volume = vol
+            return vol
 
     def get_forces(self):
         if self.calculator == None:
             raise Exception("No calculator has been assigned yet, therefore no force estimate can be given")
         else:
             return self.calculator.forces(self.positions, self.pbc, self.pbc_handler)
-
-    def set_colors(self, colors):
-        for atom, color in zip(self.atoms, colors):
-            atom.color=color
 
     def get_distances(self):
         if self.pbc == True:
@@ -232,7 +247,18 @@ class Atom_Collection():
         else:
             return self.calculator.energy(self.positions, self.pbc, self.pbc_handler)
 
+    def get_stress_tensor(self, step_size=1e-3):
+        if self.calculator == None:
+            raise Exception("No calculator has been assigned yet, therefore no stress estimate can be given")
+        else:
+            return self.calculator.stress_tensor(self.positions, self.pbc, self.pbc_handler, step_size)
 
+    def get_pressure(self, step_size=1e-3):
+        if self.calculator == None:
+            raise Exception("No calculator has been assigned yet, therefore no pressure estimate can be given")
+        else:
+            stress_tensor = self.get_stress_tensor(step_size=step_size)
+            return np.mean(stress_tensor.diagonal())/self.volume
 
 def create_atom_col_copies(atom_col, positions, velocities):
     atom_cols = []
@@ -243,18 +269,97 @@ def create_atom_col_copies(atom_col, positions, velocities):
         atom_cols.append(atom_col_copy)
     return atom_cols
 
+def custom_metric(u, v):
+    return v-u
+
+
+class PBC_handler1():
+    def __init__(self, unit_cell_vectors) -> None:
+        self.v1, self.v2 = unit_cell_vectors
+        self.v1_unit = self.get_unit_vector(self.v1)
+        self.v2_unit = self.get_unit_vector(self.v2)
+        self.volume = self.get_volume()
+        self.trans_matrix, self.inv_trans_matrix = self.get_trans_matrices(v1=self.v1_unit, v2=self.v2_unit)
+        self.v1_trans, self.v2_trans = self.project_data(self.v1), self.project_data(self.v2)
+        self.d1_trans, self.d2_trans = np.linalg.norm(self.v1_trans), np.linalg.norm(self.v2_trans)
+
+    def get_unit_vector(self, v):
+        return v/np.linalg.norm(v)
+    
+    def get_trans_matrices(self, v1, v2):
+        inv_mat = np.array([v1, v2]).T
+        mat = np.linalg.inv(inv_mat)
+        return mat, inv_mat
+
+    def get_volume(self):
+        return np.linalg.norm(np.cross(self.v1, self.v2))
+
+    def project_data(self, xy_pos):
+        return np.dot(self.trans_matrix, xy_pos.T).T
+    
+    def project_back(self, proj_pos):
+        return np.dot(self.inv_trans_matrix, proj_pos.T).T
+
+    def restrict_positions(self, atom_pos):
+        projected_pos = self.project_data(xy_pos=atom_pos)
+        for i, d in enumerate([self.d1_trans, self.d2_trans]):
+            res_coord_big = (projected_pos[:,i] > d).astype(int)*(-d)
+            res_coord_less = (projected_pos[:,i] <= 0.0).astype(int)*(d) #PERHAPS ADD SUCH THAT THE UNITCELL CAN HAVE ARBITRARY ORIGIN
+            projected_pos[:,i]+=res_coord_big+res_coord_less
+        return self.project_back(projected_pos)
+    
+    def get_periodic_dist(self, atom_pos):
+        x_diffs = pdist(atom_pos[:,0].reshape(-1,1), metric=custom_metric)
+        y_diffs = pdist(atom_pos[:,1].reshape(-1,1), metric=custom_metric)
+        projed_data = self.project_data(xy_pos=np.array([x_diffs, y_diffs]).T)
+        for i, d in enumerate([self.d1_trans, self.d2_trans]):
+            res_coord_big = (projed_data[:,i] > d/2.0).astype(int)*(-d)
+            res_coord_less = (projed_data[:,i] < -d/2.0).astype(int)*(d)
+            projed_data[:,i]+=res_coord_big+res_coord_less
+        
+        diffs = self.project_back(projed_data)
+        return np.linalg.norm(diffs, axis=1)
+    
+    def get_periodic_dist_vector(self, atom_pos):
+        diff = atom_pos[np.newaxis, :, :] - atom_pos[:, np.newaxis, :]
+        projed_data = self.project_data(diff.reshape(len(atom_pos)**2, 2))
+        for i, d in enumerate([self.d1_trans, self.d2_trans]):
+            res_coord_big = (projed_data[:,i] > d/2.0).astype(int)*(-d)
+            res_coord_less = (projed_data[:,i] < -d/2.0).astype(int)*(d)
+            projed_data[:,i]+=res_coord_big+res_coord_less
+        diffs_final = self.project_back(proj_pos=projed_data)
+        return diffs_final.reshape(len(atom_pos), len(atom_pos), 2)
+
+    def update_params(self, new_unit_cell):
+        self.v1, self.v2 = new_unit_cell
+        self.v1_unit = self.get_unit_vector(self.v1)
+        self.v2_unit = self.get_unit_vector(self.v2)
+        self.volume = self.get_volume()
+        self.trans_matrix, self.inv_trans_matrix = self.get_trans_matrices(v1=self.v1_unit, v2=self.v2_unit)
+        self.v1_trans, self.v2_trans = self.project_data(self.v1), self.project_data(self.v2)
+        self.d1_trans, self.d2_trans = np.linalg.norm(self.v1_trans), np.linalg.norm(self.v2_trans)
+
+    def scale_cell_and_coords(self, atom_pos, scale_x=1.0, scale_y=1.0):
+        scale_mat = np.array([[1.0+scale_x, 0.0], [0.0, 1.0+scale_y]])
+        self.v1 = np.dot(scale_mat, self.v1.T)
+        self.v2 = np.dot(scale_mat, self.v2.T)
+        self.update_params(new_unit_cell=(self.v1, self.v2))
+        scaled_pos = np.dot(scale_mat, atom_pos.T)
+        return scaled_pos.T
+
 class PBC_handler():
     def __init__(self, unit_cell_vectors):
         self.v1, self.v2 = unit_cell_vectors
         print("NOTE VECTORS SUPPLIED ALSO HAVE TO BE ORDERED, so (v1 --> [L,0]) and (v2 --> [0,L])")
         if np.dot(self.v1, self.v2).astype(int) != 0:
             raise Exception("unit_cell vectors are not orthogonal, and the algorithm will therefore not work")
-        self.d1 = np.linalg.norm(self.v1)
-        self.d2 = np.linalg.norm(self.v2)
+        self.d1, self.d2 = self.get_cell_lengths()
+        self.volume = self.get_volume()
+
 
     def restrict_positions(self, atom_pos):
         new_poses = atom_pos*1.0
-        #print(new_poses)
+        print(new_poses)
         for i, d in enumerate([self.d1, self.d2]):
             res_coord_big = (atom_pos[:,i] > d).astype(int)*(-d)
             res_coord_less = (atom_pos[:,i] <= 0.0).astype(int)*(d) #PERHAPS ADD SUCH THAT THE UNITCELL CAN HAVE ARBITRARY ORIGIN
@@ -277,9 +382,24 @@ class PBC_handler():
             res_coord_big = (dists > d/2.0).astype(int)*(-d)
             res_coord_less = (dists < -d/2.0).astype(int)*(d)
             dists_res.append(dists+res_coord_big+res_coord_less)
-        
         return np.linalg.norm(np.array(dists_res).T, axis=1)
     
+    def get_volume(self):
+        return self.d1*self.d2
+
+    def get_cell_lengths(self):
+        return np.linalg.norm(self.v1), np.linalg.norm(self.v2)
+
+    def scale_cell_and_coords(self, atom_pos, scale_x=1.0, scale_y=1.0):
+        scale_vector = np.array([1.0,1.0]) + np.array([scale_x, scale_y])
+        self.v1*=scale_vector[:None]
+        self.v2*=scale_vector[:None]
+        self.d1, self.d2 = self.get_cell_lengths()
+        self.volume = self.get_volume()
+        scaled_coords = (atom_pos*scale_vector[:None])*1.0
+        return scaled_coords
+
+
 
 class Atom_File_handler():
     def __init__(self) -> None:

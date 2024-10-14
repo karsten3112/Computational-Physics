@@ -12,18 +12,6 @@ class Particle_swarm():
         self.global_best_energy = None
         self.global_best_particle = None
 
-    def get_velocities(self):
-        pass
-    
-    def get_positions(self):
-        pass
-    
-    def update_velocities(self):
-        pass
-
-    def update_positions(self):
-        pass
-
     def find_global_best(self):
         energies = [particle.best_energy for particle in self.particles]
         index = np.argmin(energies)
