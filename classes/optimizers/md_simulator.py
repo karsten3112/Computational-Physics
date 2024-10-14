@@ -165,7 +165,7 @@ class MD_simulator_new1():
             if apply_thermostat == True:
                 current_vel = np.random.randn(len(current_pos),2)*np.sqrt(self.kb*self.temp/self.masses[:,None])
             if apply_barostat == True:
-                current_pos = self.pbc_handler.restrict_positions(self.barostat(current_pos=current_pos, gamma=1e-5))
+                current_pos = self.pbc_handler.restrict_positions(self.barostat(current_pos=current_pos, gamma=1e-6))
 
         
         if apply_barostat == True:
