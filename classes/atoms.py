@@ -73,7 +73,7 @@ class Atom_Collection():
         self.calculator = None
         self.N = 0
         if pbc == True:
-            self.pbc_handler = PBC_handler1(unit_cell_vectors=unit_cell)
+            self.pbc_handler = PBC_handler(unit_cell_vectors=unit_cell)
             self.set_positions(pos=np.array([atom.pos for atom in atomlist]))
             self.volume = self.get_volume()
         if pbc == False:
@@ -151,7 +151,7 @@ class Atom_Collection():
     def get_velocities(self):
         return np.array([atom.velocity for atom in self.atoms])
 
-    def get_kinetic_energy(self):
+    def get_kinetic_energy(self): #Not sure this is right
         velocities = self.get_velocities()
         masses = np.array([atom.mass for atom in self.atoms])
         return 1.0/2.0*np.sum(np.dot(masses,velocities**2))
@@ -233,7 +233,7 @@ class Atom_Collection():
         if self.calculator == None:
             raise Exception("No calculator has been assigned yet, therefore no force estimate can be given")
         else:
-            return self.calculator.forces(self.positions, self.pbc, self.pbc_handler)
+            return self.calculator.forces(self.positions)
 
     def get_distances(self):
         if self.pbc == True:
@@ -245,13 +245,13 @@ class Atom_Collection():
         if self.calculator == None:
             raise Exception("No calculator has been assigned yet, therefore no energy estimate can be given")
         else:
-            return self.calculator.energy(self.positions, self.pbc, self.pbc_handler)
+            return self.calculator.energy(self.positions)
 
     def get_stress_tensor(self, step_size=1e-3):
         if self.calculator == None:
             raise Exception("No calculator has been assigned yet, therefore no stress estimate can be given")
         else:
-            return self.calculator.stress_tensor(self.positions, self.pbc, self.pbc_handler, step_size)
+            return self.calculator.stress_tensor(self.positions, step_size)
 
     def get_pressure(self, step_size=1e-3):
         if self.calculator == None:
@@ -273,7 +273,7 @@ def custom_metric(u, v):
     return v-u
 
 
-class PBC_handler1():
+class PBC_handler():
     def __init__(self, unit_cell_vectors) -> None:
         self.v1, self.v2 = unit_cell_vectors
         self.v1_unit = self.get_unit_vector(self.v1)
@@ -346,58 +346,6 @@ class PBC_handler1():
         self.update_params(new_unit_cell=(self.v1, self.v2))
         scaled_pos = np.dot(scale_mat, atom_pos.T)
         return scaled_pos.T
-
-class PBC_handler():
-    def __init__(self, unit_cell_vectors):
-        self.v1, self.v2 = unit_cell_vectors
-        print("NOTE VECTORS SUPPLIED ALSO HAVE TO BE ORDERED, so (v1 --> [L,0]) and (v2 --> [0,L])")
-        if np.dot(self.v1, self.v2).astype(int) != 0:
-            raise Exception("unit_cell vectors are not orthogonal, and the algorithm will therefore not work")
-        self.d1, self.d2 = self.get_cell_lengths()
-        self.volume = self.get_volume()
-
-
-    def restrict_positions(self, atom_pos):
-        new_poses = atom_pos*1.0
-        print(new_poses)
-        for i, d in enumerate([self.d1, self.d2]):
-            res_coord_big = (atom_pos[:,i] > d).astype(int)*(-d)
-            res_coord_less = (atom_pos[:,i] <= 0.0).astype(int)*(d) #PERHAPS ADD SUCH THAT THE UNITCELL CAN HAVE ARBITRARY ORIGIN
-            new_poses[:,i]+=res_coord_big+res_coord_less
-        return new_poses
-
-    def get_periodic_dist_vector(self, atom_pos):
-        diff = atom_pos[np.newaxis, :, :] - atom_pos[:, np.newaxis, :]
-        diff_shaped = diff.reshape(len(atom_pos)**2, 2)
-        for i, d in enumerate([self.d1, self.d2]):
-            res_coord_big = (diff_shaped[:,i] > d/2.0).astype(int)*(-d)
-            res_coord_less = (diff_shaped[:,i] < -d/2.0).astype(int)*(d)
-            diff_shaped[:,i]+=res_coord_big+res_coord_less
-        return diff.reshape(len(atom_pos), len(atom_pos), 2)
-
-    def get_periodic_dist(self, atom_pos):
-        dists_res = []
-        for i, d in enumerate([self.d1, self.d2]):
-            dists = pdist(atom_pos[:,i].reshape(-1,1))
-            res_coord_big = (dists > d/2.0).astype(int)*(-d)
-            res_coord_less = (dists < -d/2.0).astype(int)*(d)
-            dists_res.append(dists+res_coord_big+res_coord_less)
-        return np.linalg.norm(np.array(dists_res).T, axis=1)
-    
-    def get_volume(self):
-        return self.d1*self.d2
-
-    def get_cell_lengths(self):
-        return np.linalg.norm(self.v1), np.linalg.norm(self.v2)
-
-    def scale_cell_and_coords(self, atom_pos, scale_x=1.0, scale_y=1.0):
-        scale_vector = np.array([1.0,1.0]) + np.array([scale_x, scale_y])
-        self.v1*=scale_vector[:None]
-        self.v2*=scale_vector[:None]
-        self.d1, self.d2 = self.get_cell_lengths()
-        self.volume = self.get_volume()
-        scaled_coords = (atom_pos*scale_vector[:None])*1.0
-        return scaled_coords
 
 
 

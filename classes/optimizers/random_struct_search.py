@@ -1,18 +1,12 @@
 from classes.atoms import Atom, Atom_Collection
+from classes.optimizers.optimizer import Optimizer
 from scipy.optimize import fmin
 import numpy as np
 import copy
 
-class Line_searcher():
+class Line_searcher(Optimizer):
     def __init__(self, atom_col) -> None:
-        self.calculator = atom_col.calculator
-        self.init_pos = atom_col.get_positions()
-        self.init_force = atom_col.get_forces()
-        self.pbc = atom_col.pbc
-        self.pbc_handler = atom_col.pbc_handler
-        self.frozens = (atom_col.get_frozens() == False).astype(int)
-        self.best_E = atom_col.get_potential_energy()
-        self.best_pos = self.init_pos*1.0
+        super().__init__(atom_col)
 
     def convergence_check(self, forces, force_crit=0.05):
         force_mags = np.linalg.norm(forces, axis=1)
@@ -22,29 +16,23 @@ class Line_searcher():
             return False
         
     def E_new(self, alpha, positions, forces_unit):
-        if self.pbc == True:
-            new_pos = self.pbc_handler.restrict_positions(positions + alpha*forces_unit*self.frozens[:,None])
-        else:
-            new_pos = positions + alpha*forces_unit*self.frozens[:,None]
-        return self.calculator.energy(new_pos, self.pbc, self.pbc_handler)
-
+        pos_step = alpha*forces_unit
+        new_pos = self.move_atom_positions(positions=positions, step_position=pos_step)
+        return self.get_energy(new_pos)
 
     def run(self, N_max=5000, fmax=0.05, track=False):
         converged = False
         i = 0
         current_pos = self.init_pos*1.0
-        current_forces = self.calculator.forces(current_pos, self.pbc, self.pbc_handler)
+        current_forces = self.get_forces(positions=current_pos)
         poses_tot = [current_pos]
         forces_tot = [current_forces]
-        while not(converged) and i < N_max:    
+        while not(converged) and i < N_max:
             forces_unit = current_forces/np.linalg.norm(current_forces, axis=1)[:,None]
             alpha_opt = fmin(self.E_new, 0.1, args=(current_pos, forces_unit), disp=False)
-            if self.pbc == True:
-                current_pos = self.pbc_handler.restrict_positions(current_pos+alpha_opt*forces_unit*self.frozens[:,None])
-            else:
-                current_pos = current_pos+alpha_opt*forces_unit*self.frozens[:,None]
-            
-            current_forces = self.calculator.forces(current_pos, self.pbc, self.pbc_handler)
+            step_pos = alpha_opt*forces_unit
+            current_pos = self.move_atom_positions(positions=current_pos, step_position=step_pos)
+            current_forces = self.get_forces(positions=current_pos)
             if track == True:
                 poses_tot.append(current_pos)
                 forces_tot.append(current_forces)
