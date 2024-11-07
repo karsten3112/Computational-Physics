@@ -7,6 +7,9 @@ class Calculator():
         self.pbc = pbc
         self.pbc_handler = pbc_handler
 
+    def __call__(self, r):
+        return self._V(r=r)
+    
     def _V(self, r):
         print("NO potential_function has been assigned yet")
 
@@ -47,7 +50,6 @@ class Calculator():
             return np.sum(self._V(dists))
         if self.pbc == False:
             return np.sum(self._V(pdist(pos)))
-
 
 class AutoDiff_Calculator(Calculator):
     def __init__(self, pbc=False, pbc_handler=None):

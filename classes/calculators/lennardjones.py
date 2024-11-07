@@ -31,7 +31,7 @@ class LJGauss(LennardJones):
     
     def _V(self, r):
         lennard_term = super()._V(r)
-        gauss_term = -self.gauss_eps*np.exp(-(r-self.r0)**2/(2.0*self.gauss_sigma2))
+        gauss_term = self.gauss_eps*np.exp(-(r-self.r0)**2/(2.0*self.gauss_sigma2))
         return lennard_term - gauss_term
     
     def _dV_dr(self, r):
