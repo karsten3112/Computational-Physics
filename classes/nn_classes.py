@@ -1,5 +1,7 @@
 import torch
 
+
+
 class NNmodel(torch.nn.Module):
     def __init__(self, 
                  input_dim,
