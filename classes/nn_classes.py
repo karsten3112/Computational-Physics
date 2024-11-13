@@ -48,7 +48,7 @@ class EarlyStopper():
 def evaluate_total_loss(model, data_loader, loss_func):
     loss_val = torch.tensor([0.0])
     for x_dat, y_dat in data_loader:
-        loss = loss_func(y_dat, model.forward(x_dat))
+        loss = loss_func(model.forward(x_dat), y_dat)
         loss_val+=loss*x_dat.size(0)
     return loss_val/len(data_loader.dataset)
 
@@ -60,7 +60,7 @@ def train_model(epochs, model, train_loader, val_loader, optimizer, test_loader=
         model.train()
         for x_dat, y_dat in train_loader: 
             optimizer.zero_grad()
-            loss = loss_func(y_dat, model.forward(x_dat)) #Remember that the loss calculates a mean loss over all points in batch here.
+            loss = loss_func(model.forward(x_dat), y_dat) #Remember that the loss calculates a mean loss over all points in batch here.
             train_losses[epoch] += loss.item()*x_dat.size(0) 
             loss.backward()
             optimizer.step()
