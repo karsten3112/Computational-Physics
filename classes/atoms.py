@@ -5,7 +5,7 @@ from scipy.spatial.distance import pdist
 import copy
 
 class Atom():
-    def __init__(self, position=np.zeros(2), velocity=np.zeros(2), mass=1.0, color="C0", size=50.0, frozen=False) -> None:
+    def __init__(self, position=np.zeros(2), velocity=np.zeros(2), mass=1.0, color="C0", size=50.0, frozen=False, alpha_color=1.0) -> None:
         self.pos = position
         self.color = color
         self.plot_elem = None
@@ -13,6 +13,7 @@ class Atom():
         self.frozen = frozen
         self.velocity = velocity
         self.mass = mass
+        self.alpha_color = alpha_color
 
     def __deepcopy__(self, memo):
         new_object = Atom()
@@ -28,7 +29,7 @@ class Atom():
 
     def plot(self, ax):
         if self.plot_elem == None:
-            self.plot_elem = ax.plot(self.pos[0], self.pos[1], "o", color=self.color, ms=self.size, markeredgecolor="k")[0]
+            self.plot_elem = ax.plot(self.pos[0], self.pos[1], "o", color=self.color, ms=self.size, markeredgecolor="k", alpha=self.alpha_color)[0]
         else:
             self.plot_elem.set_data(self.pos[0], self.pos[1])
         return self.plot_elem
