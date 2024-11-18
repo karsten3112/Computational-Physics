@@ -7,6 +7,10 @@ from scipy.integrate import quad
 from scipy import special
 
 
+class P_dist_handler1():
+    def __init__(self) -> None:
+        pass
+
 class P_dist_handler():
     k_b = 1.0 #Can be chosen arb. since it is not used really #1.380649e-23 
     T0 = 1.0#273.15
