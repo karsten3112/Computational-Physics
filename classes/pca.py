@@ -33,3 +33,9 @@ class PCA():
     def transform(self, data):
         X_center = data - self.mu_mat
         return np.dot(X_center, self.Q)
+    
+    def inv_transform(self, X):
+        A = np.dot(self.Q, self.Q.T)
+        A_inv = np.linalg.inv(A)
+        X_center = np.dot(X, np.dot(self.Q.T, A_inv))
+        return X_center + self.mu_mat
