@@ -160,6 +160,7 @@ class Atom_Collection():
     def move_atoms(self, new_pos):
         for atom, pos in zip(self.atoms, new_pos):
             atom.move(pos)
+        self.get_positions()
 
     def move_atom(self, index, pos):
         self.atoms[index].pos+=pos
@@ -284,6 +285,11 @@ class PBC_handler():
         self.v1_trans, self.v2_trans = self.project_data(self.v1), self.project_data(self.v2)
         self.d1_trans, self.d2_trans = np.linalg.norm(self.v1_trans), np.linalg.norm(self.v2_trans)
 
+    def __deepcopy__(self, memo):
+        new_object = PBC_handler(unit_cell_vectors=(self.v1*1.0, self.v2*1.0))
+        memo[id(self)] = new_object
+        return new_object
+
     def get_unit_vector(self, v):
         return v/np.linalg.norm(v)
     
@@ -340,15 +346,20 @@ class PBC_handler():
         self.v1_trans, self.v2_trans = self.project_data(self.v1), self.project_data(self.v2)
         self.d1_trans, self.d2_trans = np.linalg.norm(self.v1_trans), np.linalg.norm(self.v2_trans)
 
-    def scale_cell_and_coords(self, atom_pos, scale_x=1.0, scale_y=1.0):
+    def scale_cell(self, scale_x=1.0, scale_y=1.0):
         scale_mat = np.array([[1.0+scale_x, 0.0], [0.0, 1.0+scale_y]])
         self.v1 = np.dot(scale_mat, self.v1.T)
         self.v2 = np.dot(scale_mat, self.v2.T)
         self.update_params(new_unit_cell=(self.v1, self.v2))
-        scaled_pos = np.dot(scale_mat, atom_pos.T)
-        return scaled_pos.T
 
+    def scale_coords(self, coords, scale_x=1.0, scale_y=1.0):
+        scale_mat = np.array([[1.0+scale_x, 0.0], [0.0, 1.0+scale_y]])
+        scaled_coord = np.dot(scale_mat, coords.T)
+        return scaled_coord.T
 
+    def scale_cell_and_coords(self, coords, scale_x=1.0, scale_y=1.0):
+        self.scale_cell(scale_x=scale_x, scale_y=scale_y)
+        return self.scale_coords(coords=coords, scale_x=scale_x, scale_y=scale_y)
 
 class Atom_File_handler():
     def __init__(self) -> None:

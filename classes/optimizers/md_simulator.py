@@ -40,9 +40,9 @@ class MD_Simulator(Optimizer):
             result_vels.append(current_vel)
             result_stresses.append(self.get_stress_tensor(positions=current_pos, step_size=self.step_size))
             result_vols.append(self.get_volume())
-            result_Es.append(self.get_energy(current_pos)+self.kinetic_energy(current_vel))
-        #print(len(result_poses))
-        return result_poses, result_vels,result_stresses, result_vols, result_Es
+            result_Es.append(self.get_energy(current_pos))#+self.kinetic_energy(current_vel))
+        
+        return result_poses, result_vels, result_stresses, result_vols, result_Es
     
     def N2_integration_without_stress(self, current_pos, current_vel):
         result_poses = [current_pos]
@@ -67,7 +67,6 @@ class MD_Simulator(Optimizer):
     def barostat(self, current_pos, target_stress=np.zeros(shape=(2,2))):
         max_scale = 1e-3
         min_scale = -1e-3
-        self.init_unit_cell
         current_stress = self.get_stress_tensor(positions=current_pos, step_size=self.step_size)
         current_scale = (current_stress-target_stress)*self.gamma #Not sure this is quite right, i should add the previous scale factor here?
         for i in range(len(current_scale)):
@@ -75,7 +74,7 @@ class MD_Simulator(Optimizer):
                 current_scale[i,i] = max_scale
             if current_scale[i,i] < min_scale:
                 current_scale[i,i] = min_scale
-        current_pos = self.scale_cell_and_coords(positions=current_pos, scale_x=current_scale[0,0],scale_y=current_scale[1,1]) #remember that barostat scales the cell of PBC_handler and needs to be readjusted if needed
+        current_pos = self.scale_cell_pos(positions=current_pos, scale_x=current_scale[0,0],scale_y=current_scale[1,1]) #remember that barostat scales the cell of PBC_handler and needs to be readjusted if needed
         return current_pos
 
     def kinetic_energy(self, velocities):
@@ -108,9 +107,6 @@ class MDTP_Simulator(MD_Simulator):
     def run_MD_simulation(self, N_steps=1000, reset_unit_cell=True):
         current_pos = self.init_pos*1.0
         current_vel = self.init_velocities*1.0
-        current_scale = 0.0
-        #current_stress = self.init_stress*1.0
-        #current_vol = self.init_volume
         
         result_poses = []
         result_vels = []
@@ -120,7 +116,6 @@ class MDTP_Simulator(MD_Simulator):
         for i in range(N_steps):
             n2_poses, n2_vels, n2_stresses, n2_vols, n2_Es = self.N2_integration_with_stress(current_pos=current_pos, current_vel=current_vel)
             current_pos = n2_poses[-1]
-            
             result_Es.append(n2_Es)
             current_vel = self.thermostat()
             current_pos = self.restrict_positions(self.barostat(current_pos=current_pos))

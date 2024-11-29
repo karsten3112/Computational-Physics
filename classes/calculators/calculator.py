@@ -36,7 +36,7 @@ class Calculator():
             E0 = self.energy(pos=pos)
             pos0=pos*1.0
             for i, strain in enumerate(strains):
-                scaled_pos = self.pbc_handler.scale_cell_and_coords(atom_pos=pos0, scale_x=strain[0], scale_y=strain[1])
+                scaled_pos = self.pbc_handler.scale_cell_and_coords(coords=pos0, scale_x=strain[0], scale_y=strain[1])
                 E_step = self.energy(pos=scaled_pos)
                 stress_comps[i] = - (E_step - E0)/strain[i]
                 self.pbc_handler.update_params(new_unit_cell=(l01, l02))
