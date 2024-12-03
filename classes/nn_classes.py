@@ -1,7 +1,5 @@
 import torch
 
-
-
 class NNmodel(torch.nn.Module):
     def __init__(self, 
                  input_dim,
@@ -51,6 +49,8 @@ def evaluate_total_loss(model, data_loader, loss_func):
         loss = loss_func(model.forward(x_dat), y_dat)
         loss_val+=loss*x_dat.size(0)
     return loss_val/len(data_loader.dataset)
+        
+
 
 def train_model(epochs, model, train_loader, val_loader, optimizer, test_loader=None, early_stopping=True, patience=10, loss_func=torch.nn.MSELoss()):
     early_stopper = EarlyStopper(patience=patience)
@@ -81,3 +81,4 @@ def train_model(epochs, model, train_loader, val_loader, optimizer, test_loader=
     else:
         test_loss = evaluate_total_loss(model=model, data_loader=test_loader, loss_func=loss_func)
         return train_losses[0:epoch], val_losses[0:epoch], test_loss[0:epoch]
+    
