@@ -62,7 +62,7 @@ class PairDistances():
     def get_descriptor(self, atom_col):
         distances = atom_col.get_distances()
         desc, _ = np.histogram(distances, self.bin_edges)
-        print(self.bin_edges)
+        #print(self.bin_edges)
         return desc
 
     def plot(self, atom_col, ax):
