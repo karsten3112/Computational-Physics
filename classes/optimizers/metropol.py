@@ -1,7 +1,7 @@
 import numpy as np
 import copy
-from classes.atoms import Atom, Atom_Collection, PBC_handler
-
+#from classes.atoms import Atom, Atom_Collection, PBC_handler
+from classes.optimizers.optimizer import Optimizer1
 
 def random_dir_step(N, step_size):
     vs = np.random.rand(N)*2.0*np.pi
@@ -12,7 +12,110 @@ def random_dir_step(N, step_size):
 
 def uniform_step(N, step_range):
     poses = np.random.rand(N,2)*step_range - 1.0/2.0*step_range
-    return poses
+    if N == 1:
+        return poses[0]
+    else:
+        return poses
+
+
+class Metropol_new1(Optimizer1):
+    kb = 1.0
+    def __init__(self, atom_col, T, proposal_func=random_dir_step, prop_args=(0.1,)):
+        super().__init__(atom_col)
+        self.T = T
+        self.proposal_func = proposal_func
+        self.prop_args = prop_args
+        self.best_E = None
+        self.best_atom_col = None
+        self.last_atom_col = None
+
+
+    def run_each_atom(self, N_max=5000, E_limit=None, start_quench=5000, track=True):
+        i = 0
+        E_currently = self.get_potential_energy()
+        prop_func = lambda *prop_args: self.proposal_func(1, *prop_args)
+        pos_currently = self.get_atom_positions()*1.0
+        frozens = self.atom_col.frozens
+        if self.best_E is None:
+            self.best_E = E_currently
+
+        while i < N_max and E_currently >= E_limit:
+            new_accept = False
+            for _ in range(self.atom_col.N_atoms):
+                index = np.random.randint(0, self.atom_col.N_atoms, 1) #I dont think this loop is quite fair? Should break after each atom has been moved regardless?
+                if frozens[index] == True:
+                    pass
+                else:
+                    proposal_pos = prop_func(*self.prop_args)
+                    self.move_single_atom(index=index, position=proposal_pos)
+                    E_new = self.get_potential_energy()
+                    acc_prob = np.exp(-(E_new-E_currently)/self.T)
+                    p = np.random.rand(1)
+                    if i > start_quench:
+                        if E_new < E_currently:
+                            pos_currently = self.get_atom_positions()*1.0
+                            E_currently = E_new
+                            new_accept = True
+                        else:
+                            self.set_atom_positions(pos_currently)
+                    else:
+                        if p < acc_prob:
+                            pos_currently = self.get_atom_positions()*1.0
+                            E_currently = E_new
+                            new_accept = True
+                        else:
+                            self.set_atom_positions(pos_currently)
+                    if new_accept == True:
+                        if E_currently < self.best_E:
+                            self.best_E = E_currently
+                            self.best_pos = pos_currently*1.0
+                            self.best_atom_col = copy.deepcopy(self.atom_col) 
+                    if track == True:
+                        self.log_atom_col()
+                    break
+            i+=1
+        self.last_atom_col = copy.deepcopy(self.atom_col)
+
+    def run_all_atoms(self, N_max=5000, E_limit=None, start_quench=5000, track=True):
+        i = 0
+        E_currently = self.get_potential_energy()
+        prop_func = lambda *prop_args: self.proposal_func(self.atom_col.N_atoms, *prop_args)
+        pos_currently = self.get_atom_positions()*1.0
+        if self.best_E is None:
+            self.best_E = E_currently
+        
+        while i < N_max and E_currently >= E_limit:
+            proposal_pos = prop_func(*self.prop_args)
+            self.move_atoms(proposal_pos)
+            #print(self.atom_col.positions)
+            E_new = self.get_potential_energy()
+            acc_prob = np.exp(-(E_new-E_currently)/self.T)
+            p = np.random.rand(1)
+            
+            if i > start_quench:
+                if E_new < E_currently:
+                    pos_currently = self.get_atom_positions()*1.0
+                    E_currently = E_new
+                else:
+                    #pass
+                    self.set_atom_positions(pos_currently)
+            else:
+                if p < acc_prob:
+                    pos_currently = self.get_atom_positions()*1.0
+                    E_currently = E_new
+                else:
+                    #pass
+                    self.set_atom_positions(pos_currently)
+
+            if E_currently < self.best_E:
+                self.best_E = E_currently
+                self.best_pos = pos_currently*1.0
+                self.best_atom_col = copy.deepcopy(self.atom_col)
+           #print(self.best_E)
+            if track == True:
+                self.log_atom_col()
+            i+=1
+        self.last_atom_col = copy.deepcopy(self.atom_col)
 
 class Metropol_new():
     kb = 1.0

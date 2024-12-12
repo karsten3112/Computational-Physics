@@ -1,82 +1,51 @@
-from classes.optimizers.random_struct_search import Line_searcher
-from classes.optimizers.metropol import Metropol_new
+from classes.optimizers.optimizer import Optimizer1
+from classes.optimizers.metropol import Metropol_new1
+from classes.optimizers.random_struct_search import Line_searcher1
 import numpy as np
-from scipy.optimize import fmin
+import copy
 
-def gauss_dist(shape, sigma=0.2):
-    M, N = shape
-    return np.random.randn(M,N)*sigma
+def gauss_dist(N_atoms, sigma=0.2):
+    poses = np.random.randn(N_atoms, 2)*sigma
+    if N_atoms == 1:
+        return poses[0]
+    else:
+        return poses
 
-class Bassin_Hopper():
-    def __init__(self, atom_col, temp) -> None:
-        self.temp = temp
-        self.calculator = atom_col.calculator
-        self.init_pos = atom_col.get_positions()
-        self.init_force = atom_col.get_forces()
-        self.pbc = atom_col.pbc
-        self.pbc_handler = atom_col.pbc_handler
-        self.frozens = (atom_col.get_frozens() == False).astype(int)
-        self.best_E = atom_col.get_potential_energy()
-        self.best_pos = self.init_pos*1.0
-    
-    def convergence_check(self, forces, force_crit=0.05):
-        force_mags = np.linalg.norm(forces, axis=1)
-        if abs(np.max(force_mags)) <= force_crit:
-            return True
-        else:
-            return False
 
-    def E_new(self, alpha, positions, forces_unit):
-        if self.pbc == True:
-            new_pos = self.pbc_handler.restrict_positions(positions + alpha*forces_unit*self.frozens[:,None])
-        else:
-            new_pos = positions + alpha*forces_unit*self.frozens[:,None]
-        return self.calculator.energy(new_pos, self.pbc, self.pbc_handler)
+class Bassin_Hopper(Optimizer1):
+    def __init__(self, atom_col, T, N_lin_search=2000, N_metropol=1000, start_quench=5000):
+        super().__init__(atom_col)
+        self.T = T
+        self.best_atom_col = self.atom_col
+        self.N_lin_search = N_lin_search
+        self.N_metropol = N_metropol
+        self.start_quench = start_quench
 
-    def line_search(self, positions, fmax=0.05, N_max=400):
-        converged = False
+    def run(self, N_max=500, fmax=0.05, E_limit=-300, track=False, proposal_func=gauss_dist, prop_args=(0.2,), metro_method="all_atoms"):
         i = 0
-        current_pos = positions*1.0
-        current_forces = self.calculator.forces(current_pos, self.pbc, self.pbc_handler)
-        while not(converged) and i < N_max:
-            forces_unit = current_forces/np.linalg.norm(current_forces, axis=1)[:,None]
-            alpha_opt = fmin(self.E_new, 0.1, args=(current_pos, forces_unit), disp=False)
-            if self.pbc == True:
-                current_pos = self.pbc_handler.restrict_positions(current_pos+alpha_opt*forces_unit*self.frozens[:,None])
-            else:
-                current_pos = current_pos+alpha_opt*forces_unit*self.frozens[:,None]
+        E_current = self.get_potential_energy()
+        E_best = E_current
+        #print(N_max)
+        while i < N_max:
+            metropol = Metropol_new1(atom_col=self.atom_col, T=self.T, proposal_func=proposal_func, prop_args=prop_args)
+            if metro_method == "all_atoms":
+                metropol.run_all_atoms(N_max=self.N_metropol, E_limit=E_limit, track=track, start_quench=self.start_quench)
+            if metro_method == "single_atom":
+                metropol.run_each_atom(N_max=self.N_metropol, E_limit=E_limit, track=track, start_quench=self.start_quench)
 
-            current_forces = self.calculator.forces(current_pos, self.pbc, self.pbc_handler)
-            converged = self.convergence_check(current_forces, force_crit=fmax)
-            i+=1
-        return current_pos
+            self.atom_col = copy.deepcopy(metropol.atom_col)
 
-    def run(self, N_max=500, fmax=0.05, track=False, proposal_func=gauss_dist, prop_args=(0.2,)):
-        i = 0
-        current_pos = self.init_pos*1.0
-        E_currently = self.calculator.energy(current_pos, self.pbc, self.pbc_handler)
-        poses = [current_pos]
-        energies = [E_currently]
-        for i in range(N_max):
-            new_pos = current_pos + proposal_func(current_pos.shape, *prop_args)*self.frozens[:,None]
-            optimized_pos = self.line_search(positions=new_pos, fmax=fmax)
-            E_new = self.calculator.energy(optimized_pos, self.pbc, self.pbc_handler)
-            p = np.random.rand()
-            acc_prob = np.exp(-(E_new-E_currently)/self.temp)
-            if p < acc_prob:
-                pos_currently = optimized_pos*1.0
-                E_currently = E_new
-            else:
-                pass
+            line_searcher = Line_searcher1(atom_col=self.atom_col)
+            line_searcher.run(N_max=self.N_lin_search, fmax=fmax, track=track)
             
-            if E_new < self.best_E:
-                self.best_E = E_new
-                self.best_pos = optimized_pos*1.0
+            self.atom_col = copy.deepcopy(line_searcher.best_atom_col)
             
             if track == True:
-                poses.append(pos_currently)
-                energies.append(E_currently)
-            else:
-                poses = [self.best_pos]
-                energies = [self.best_E]
-        return np.array(poses), np.array(energies)
+                self.logged_atom_cols+=metropol.logged_atom_cols
+                self.logged_atom_cols+=line_searcher.logged_atom_cols
+            
+            E_current = self.get_potential_energy()
+            if E_current < E_best:
+                E_best = E_current
+                self.best_atom_col = self.atom_col
+            i+=1

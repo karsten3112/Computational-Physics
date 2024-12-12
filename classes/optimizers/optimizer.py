@@ -4,9 +4,16 @@ from classes.atoms import Atom, Atom_Collection
 
 class Optimizer1():
     def __init__(self, atom_col):
-        self.atom_col = atom_col
+        self.atom_col = copy.deepcopy(atom_col)
+        self.atom_col.calculator = atom_col.calculator
         self.logged_atom_cols = []
     
+    def move_single_atom(self, index, position):
+        self.atom_col.move_atom(index, position)
+
+    def move_atoms(self, positions):
+        self.atom_col.move_atoms(positions)
+
     def get_volume(self):
         return self.atom_col.get_volume()
 
@@ -29,7 +36,7 @@ class Optimizer1():
         return self.atom_col.positions
     
     def set_atom_positions(self, positions):
-        self.atom_col.set_positions(positions)
+        self.atom_col.set_atom_positions(positions)
     
     def get_atom_masses(self):
         return self.atom_col.masses

@@ -14,8 +14,14 @@ class H_pot():
         self.p_dist = None
         self.p_func = None
 
+    def __call__(self, xs):
+        return self.v_func(xs, **self.v_func_args)
+
     def boltzmann_factor(self, energy):
         return np.exp(-(energy)/(self.k_b*self.T))
+
+    def boltzmann_diff_factor(self, energy, energy_prime):
+        return np.exp(-(energy_prime-energy)/(self.k_b*self.T))
 
     def get_pdist(self, method, **kwargs):
         if self.p_dist is None:
@@ -40,19 +46,24 @@ class H_pot():
         exp_val = quad(func, *x_interval)[0]
         return exp_val
 
-    def metro_montecarlo_sampling(self, proposal_func, x0, N, **kwargs):
-        accept_prop = lambda x_prime, x: self.boltzmann_factor(self.v_func(x_prime, **self.v_func_args))/self.boltzmann_factor(self.v_func(x, **self.v_func_args))
+    def metro_montecarlo_sampling(self, proposal_func, x0, N, terminate_sampling=(False, 0.0), **kwargs):
+        accept_prop = lambda x_prime, x: self.boltzmann_diff_factor(self.v_func(x, **self.v_func_args),self.v_func(x_prime, **self.v_func_args))#self.boltzmann_factor(self.v_func(x_prime, **self.v_func_args))/self.boltzmann_factor(self.v_func(x, **self.v_func_args))
         xs = []
         x = x0
-        while len(xs) < N+1:
+        while len(xs) < N:
             p = np.random.rand(1)
             x_prime = proposal_func(x, **kwargs)
             acc_prob = accept_prop(x=x, x_prime=x_prime)
-            if p <= acc_prob:
+            if p <= min(1.0, acc_prob):
                 xs.append(x_prime)
                 x = x_prime
             else:
                 xs.append(x)
+            if terminate_sampling[0] is True:
+                if self(x) <= terminate_sampling[1]:
+                    break
+            else:
+                pass
         return np.array(xs)
     
     def plot(self, ax, plot_range=[-4.0, 4.0], colors={"v_avg":"C3","v_func":"k"}):
@@ -175,10 +186,11 @@ class H_Metro_MonteCarlo(H_pot):
         self.N = N
         self.proposal_func = proposal_func
         self.proposal_func_args = proposal_func_args
-        self.x0 = x0
+        if type(x0) is float:
+            self.x0 = np.array([x0])
     
     def get_pdist(self):
-        super().get_pdist("metro_montecarlo_sampling")
+        return super().get_pdist("metro_montecarlo_sampling")
     
     def get_v_avg(self):
         if self.p_dist is None:
@@ -190,8 +202,8 @@ class H_Metro_MonteCarlo(H_pot):
             self.get_pdist()
         return super().get_v_avg_squared()
     
-    def metro_montecarlo_sampling(self):
-        return super().metro_montecarlo_sampling(self.proposal_func, self.x0, self.N, **self.proposal_func_args)
+    def metro_montecarlo_sampling(self, terminate_sampling=(False, 0)):
+        return super().metro_montecarlo_sampling(self.proposal_func, self.x0, self.N, terminate_sampling, **self.proposal_func_args)
     
     def get_expectation_value(self, operator):
         if self.p_dist is None:
