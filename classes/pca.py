@@ -8,6 +8,7 @@ class PCA():
         self.eigvals = None
         self.Q = None
         self.mu_mat = None
+        self.explained_var = None
 
     def construct_X_centered(self, data):
         #M,p = data.shape
@@ -25,6 +26,7 @@ class PCA():
             eigvals, Q = np.linalg.eig(self.C)
             eigvals_order = np.argsort(eigvals)[::-1]
             self.eigvals = eigvals[eigvals_order]
+            self.explained_var = self.eigvals/np.sum(self.eigvals)
             Q = Q[:,eigvals_order]
             self.Q = Q[:,:self.n_components]
         else:
