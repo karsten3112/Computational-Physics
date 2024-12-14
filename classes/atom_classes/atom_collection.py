@@ -88,18 +88,11 @@ class Atom_Collection():
         else:
             self.positions[index]=pos*self.frozens_bin[index]
 
-    def set_positions(self, pos):
-        if self.pbc == True:
-            restricted_pos = self.pbc_handler.restrict_positions(atom_pos=pos)
-            self.positions = restricted_pos
-        else:
-            self.positions = pos
-
     def set_velocities(self, vels):
-        self.velocities = vels
+        self.velocities = vels*self.frozens_bin[:,None]
     
     def boost_velocities(self, vels):
-        self.velocities+=vels
+        self.velocities+=vels*self.frozens_bin[:,None]
     
     def set_atom_vel(self, index, vel):
         self.velocities[index] = vel

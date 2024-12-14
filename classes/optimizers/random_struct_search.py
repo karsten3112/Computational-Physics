@@ -4,7 +4,6 @@ from scipy.optimize import fmin
 import numpy as np
 import copy
 
-
 class Line_searcher1(Optimizer1):
     def __init__(self, atom_col):
         super().__init__(atom_col)

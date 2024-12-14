@@ -19,7 +19,8 @@ class MD_simulator(Optimizer):
         self.set_atom_positions(self.get_atom_positions()+pos_step)
         acc_new = self.get_forces()/masses[:,None]
         step_velocities = 1.0/2.0*(acc + acc_new)*time_step
-        self.set_atom_velocities(self.get_atom_velocities()+step_velocities)
+        #print(self.get_atom_velocities()+step_velocities)
+        self.set_atom_velocities((self.get_atom_velocities()+step_velocities)*1.0)
     
     def perform_euler_step(self, time_step=1e-3):
         masses = self.get_atom_masses()

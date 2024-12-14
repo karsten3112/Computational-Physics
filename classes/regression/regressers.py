@@ -114,8 +114,6 @@ class Ridge_Regression(Regresser):
     def sample(self, x_data):
         return super().sample(x_data)
 
-
-
 class Pol_Regression(Ridge_Regression):
     def __init__(self, data, N_degs) -> None:
         super().__init__(data, N_degs, lamb=0.0)
