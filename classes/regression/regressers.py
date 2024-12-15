@@ -49,14 +49,23 @@ def RBF_kernel_func(x_basis, x_data, sigma):
             mat[i] = dists
         return np.exp(-mat/(2.0*sigma**2))
     except:
-        M, = x_basis.shape
-        N, = x_data.shape
+        M,_ = x_basis.shape
+        N,_ = x_data.shape
         mat = np.zeros(shape=(M,N))
         for i, x in enumerate(x_basis):
             dists = abs(x-x_data.T)**2
             mat[i] = dists
         res_mat = mat.T
         return np.exp(-res_mat/(2.0*sigma**2))
+
+def gaussian_kernel_func(x_basis, x_data, sigma=0.1):
+    N, _ = x_basis.shape
+    M, _ = x_data.shape
+    mat = np.zeros(shape=(M,N))
+    for i, x_base in enumerate(x_basis):
+        l = np.linalg.norm(x_data-x_base, axis=1)**2
+        mat[:,i] = np.exp(-l/(2.0*sigma**2))
+    return mat
 
 class Kernel_Ridge_Regression():
     def __init__(self, x_data, y_data, kernel_func, lamb) -> None:
@@ -83,6 +92,11 @@ class Kernel_Ridge_Regression():
 class pol_kernel_regressor(Kernel_Ridge_Regression):
     def __init__(self, x_data, y_data, N_deg, lamb) -> None:
         kernel_func = lambda x_basis, x_data: pol_kernel_func(x_basis=x_basis, x_data=x_data, N_deg=N_deg)
+        super().__init__(x_data, y_data, kernel_func, lamb)
+
+class Gaussian_kernel_regressor(Kernel_Ridge_Regression):
+    def __init__(self, x_data, y_data, lamb, sigma) -> None:
+        kernel_func = lambda x_basis, x_data: gaussian_kernel_func(x_basis=x_basis, x_data=x_data, sigma=sigma)
         super().__init__(x_data, y_data, kernel_func, lamb)
 
 class RBF_kernel_regressor(Kernel_Ridge_Regression):
