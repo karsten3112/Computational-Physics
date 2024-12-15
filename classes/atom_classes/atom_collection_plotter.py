@@ -79,8 +79,8 @@ class Atom_Collection_Plotter():
                                    "extra_cells":None,
                                    }
         if plot_cell == True:
-            atom_col.plot_elems["unit_cell"] = self.plot_cell(atom_col)
             atom_col.plot_elems["atoms"] = self.plot_atom_col(atom_col)
+            atom_col.plot_elems["unit_cell"] = self.plot_cell(atom_col)
         else:
             atom_col.plot_elems["atoms"] = self.plot_atom_col(atom_col)
         
