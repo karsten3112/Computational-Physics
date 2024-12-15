@@ -22,7 +22,7 @@ class Atom_Collection():
        
         if pbc == True:
             self.pbc_handler = PBC_handler(unit_cell_vectors=unit_cell)
-            self.set_positions(pos=self.positions*1.0)
+            self.set_atom_positions(pos=self.positions*1.0)
             self.volume = self.get_volume()
         if pbc == False:
             self.positions = self.get_positions()
