@@ -33,8 +33,8 @@ class Atom_Collection():
         atomlist = []
         for pos, vel, frozen, mass in zip(self.positions*1.0, self.velocities*1.0, copy.deepcopy(self.frozens), self.masses*1.0):
             atomlist.append(Atom(position=pos, velocity=vel, frozen=frozen, mass=mass))
-        new_object = Atom_Collection(atomlist=atomlist, unit_cell=copy.deepcopy(self.unit_cell), pbc=self.pbc)
-        new_object.calculator = self.calculator
+        new_object = Atom_Collection(atomlist=atomlist, unit_cell=self.unit_cell, pbc=self.pbc)
+        new_object.calculator = copy.deepcopy(self.calculator)
         memo[id(self)] = new_object
         return new_object
 
@@ -78,7 +78,6 @@ class Atom_Collection():
             restricted_pos = self.pbc_handler.restrict_positions(atom_pos=self.positions[index]+pos*self.frozens_bin[index])
             self.positions[index] = restricted_pos*1.0
         else:
-            #print(pos)
             self.positions[index] += pos*self.frozens_bin[index]
 
     def set_atom_pos(self, index, pos):
@@ -114,9 +113,9 @@ class Atom_Collection():
     
     def scale_volume(self, scale_x=1.0, scale_y=1.0):
         if self.pbc == True:
-            scaled_positions = self.pbc_handler.scale_cell_and_coords(self.positions, scale_x=scale_x, scale_y=scale_y)
-            self.set_positions(scaled_positions)
-            self.unit_cell = (self.pbc_handler.v1, self.pbc_handler.v2)
+            scaled_positions = self.pbc_handler.scale_cell_and_coords(self.positions*1.0, scale_x=scale_x, scale_y=scale_y)
+            self.set_atom_positions(scaled_positions)
+            self.unit_cell = (self.pbc_handler.v1*1.0, self.pbc_handler.v2*1.0)
             self.get_volume()
     
     def get_volume(self):
@@ -125,29 +124,50 @@ class Atom_Collection():
             self.volume = vol
             return vol
 
+    def get_distance_vector(self):
+        if self.pbc == True:
+            return self.pbc_handler.get_periodic_dist_vector(atom_pos=self.positions)
+        else:
+            return  self.positions[np.newaxis, :, :] - self.positions[:, np.newaxis, :]
+    
     def get_forces(self):
         if self.calculator == None:
             raise Exception("No calculator has been assigned yet, therefore no force estimate can be given")
         else:
-            return self.calculator.forces(self.positions)
+            diff = self.get_distance_vector()
+            r = np.sqrt(np.sum(diff**2, axis=-1))
+            np.fill_diagonal(r, np.inf)
+            force_magnitude = self.calculator.forces(r)
+            forces = np.sum(force_magnitude[..., np.newaxis] * diff / \
+                    r[..., np.newaxis], axis=1)
+            return forces
+
+    def get_stress_tensor(self, step_size=1e-3):
+        if self.calculator == None:
+            raise Exception("No calculator has been assigned yet, therefore no stress estimate can be given")
+        else:
+            stress_comps = np.zeros(shape=(2,2))
+            l01, l02 = self.unit_cell
+            strains = step_size*np.array([[1.0/np.linalg.norm(l01), 0.0], [0.0, 1.0/np.linalg.norm(l02)]])
+            E0 = self.calculator.energy(self.get_distances())
+            for i, strain in enumerate(strains):
+                self.scale_volume(scale_x=strain[0], scale_y=strain[1])
+                E_step = self.calculator.energy(self.get_distances())
+                stress_comps[i] = - (E_step - E0)/strain[i]
+                self.scale_volume(scale_x=-strain[0], scale_y=-strain[1])
+            return stress_comps.reshape(2,2)
 
     def get_distances(self):
         if self.pbc == True:
             return self.pbc_handler.get_periodic_dist(atom_pos=self.positions)
         else:
             return pdist(self.positions)
-        
+       
     def get_potential_energy(self):
         if self.calculator == None:
             raise Exception("No calculator has been assigned yet, therefore no energy estimate can be given")
         else:
-            return self.calculator.energy(self.positions)
-
-    def get_stress_tensor(self, step_size=1e-3):
-        if self.calculator == None:
-            raise Exception("No calculator has been assigned yet, therefore no stress estimate can be given")
-        else:
-            return self.calculator.stress_tensor(self.positions, step_size)
+            return self.calculator.energy(self.get_distances())
 
     def get_pressure(self, step_size=1e-3):
         if self.calculator == None:

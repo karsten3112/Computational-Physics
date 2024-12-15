@@ -5,7 +5,6 @@ from classes.atoms import Atom, Atom_Collection
 class Optimizer1():
     def __init__(self, atom_col):
         self.atom_col = copy.deepcopy(atom_col)
-        self.atom_col.calculator = atom_col.calculator
         self.logged_atom_cols = []
     
     def move_single_atom(self, index, position):

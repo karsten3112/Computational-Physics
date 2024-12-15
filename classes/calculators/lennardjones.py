@@ -1,11 +1,17 @@
 import numpy as np
 from classes.calculators.calculator import Calculator, AutoDiff_Calculator
+import copy
 
 class LennardJones(Calculator):
-    def __init__(self, pbc=False, pbc_handler=None, eps0=5.0, sigma=2**(-1/6)):
+    def __init__(self, eps0=5.0, sigma=2**(-1/6)):
         self.eps0 = eps0
         self.sigma = sigma
-        super().__init__(pbc, pbc_handler)
+        super().__init__()
+
+    def __deepcopy__(self, memo):
+        new_object = LennardJones(eps0=self.eps0*1.0, sigma=self.sigma*1.0)
+        memo[id(self)] = new_object
+        return new_object
 
     def _dV_dr(self, r):
         t1 = 6.0*(self.sigma**6)/(r**7)

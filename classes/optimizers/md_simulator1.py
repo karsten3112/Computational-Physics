@@ -94,17 +94,17 @@ class MDTP_simulator(MD_simulator):
     def __init__(self, atom_col, temp, log_level="only_md_steps", integration_method="verlet_integration"):
         super().__init__(atom_col, temp, log_level, integration_method)
 
-    def run_MDsimulation(self, N_steps=200, target_stress=np.zeros(shape=(2,2)), time_step=1e-3, gamma=1e-4, step_size=1e-5):
+    def run_MDsimulation(self, N_steps=200, target_stress=np.zeros(shape=(2,2)), time_step=1e-3, gamma=1e-4, step_size=1e-5, max_scale=5e-4):
         if self.log_level == "only_end_result":
             for _ in range(N_steps):
                 self.N2_integration(time_step=time_step)
                 self.thermostat()
-                self.barostat(target_stress=target_stress,step_size=step_size, gamma=gamma)
+                self.barostat(target_stress=target_stress,step_size=step_size, gamma=gamma, max_scale=max_scale)
             self.log_atom_col()
         else:
             for _ in range(N_steps):
                 self.N2_integration(time_step=time_step)
                 self.thermostat()
-                self.barostat(target_stress=target_stress,step_size=step_size, gamma=gamma)
+                self.barostat(target_stress=target_stress,step_size=step_size, gamma=gamma, max_scale=max_scale)
                 self.log_atom_col()
 
