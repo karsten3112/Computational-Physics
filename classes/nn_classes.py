@@ -80,5 +80,5 @@ def train_model(epochs, model, train_loader, val_loader, optimizer, test_loader=
         return train_losses[:epoch+1], val_losses[:epoch+1]
     else:
         test_loss = evaluate_total_loss(model=model, data_loader=test_loader, loss_func=loss_func)
-        return train_losses[0:epoch], val_losses[0:epoch], test_loss[0:epoch]
+        return train_losses[:epoch+1], val_losses[:epoch+1], test_loss
     

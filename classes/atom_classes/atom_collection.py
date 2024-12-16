@@ -14,7 +14,7 @@ class Atom_Collection():
         self.frozens_bin = (self.frozens == False).astype(int)
         self.velocities = np.array([atom.velocity for atom in atomlist])
         self.positions = np.array([atom.pos for atom in atomlist])
-        
+        self.label = None
         self.plot_axes = None
         self.plot_elems = {}
         

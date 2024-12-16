@@ -5,12 +5,13 @@ from scipy.spatial.distance import pdist
 import copy
 
 class Atom():
-    def __init__(self, position=np.zeros(2), velocity=np.zeros(2), mass=1.0, frozen=False) -> None:
+    def __init__(self, position=np.zeros(2), velocity=np.zeros(2), mass=1.0, frozen=False, label=None) -> None:
         self.pos = position
         self.plot_elem = None
         self.frozen = frozen
         self.velocity = velocity
         self.mass = mass
+        self.label = label
 
     def __deepcopy__(self, memo):
         new_object = Atom()
@@ -21,6 +22,7 @@ class Atom():
         new_object.velocity = copy.copy(self.velocity)
         new_object.mass = copy.copy(self.mass)
         new_object.plot_elem = None
+        new_object.label=self.label
         memo[id(self)] = new_object
         return new_object
 
