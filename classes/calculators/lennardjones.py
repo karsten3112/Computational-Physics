@@ -35,14 +35,19 @@ class LJGauss(Calculator):
     def _V(self, r):
         lennard_term = (1.0/r)**12-2.0*(1.0/r)**6
         gauss_term = self.gauss_eps*np.exp(-(r-self.r0)**2/(2.0*self.gauss_sigma2))
+        #print(lennard_term, gauss_term)
         return lennard_term - gauss_term
     
     def _dV_dr(self, r):
         t1 = 6.0*(1.0**6)/(r**7)
         t2 = 2.0*12.0*(1.0**12)/(r**13)
         lennard_term = (t1 - t2)
+        np.fill_diagonal(r, 0.0)
         gauss_term = self.gauss_eps/self.gauss_sigma2*np.exp(-(r-self.r0)**2/(2.0*self.gauss_sigma2))*(r-self.r0)
-        return lennard_term + gauss_term
+        total_force = lennard_term+gauss_term
+        np.fill_diagonal(total_force, 0.0)
+        np.fill_diagonal(r, np.inf)
+        return total_force
 
 class LennardJones_AutoDiff(AutoDiff_Calculator):
     def __init__(self, pbc=False, pbc_handler=None, eps0=5.0, sigma=2**(-1/6)):

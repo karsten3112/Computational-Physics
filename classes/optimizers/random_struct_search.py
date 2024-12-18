@@ -19,7 +19,9 @@ class Line_searcher1(Optimizer1):
         
     def E_new(self, alpha, current_pos, forces_unit):
         pos_step = alpha*forces_unit
-        r = pdist(current_pos+pos_step)
+        new_pos = self.atom_col.pbc_handler.restrict_positions(current_pos+pos_step)
+        r = self.atom_col.pbc_handler.get_periodic_dist(new_pos)
+        #r = pdist(current_pos+pos_step)
         E = self.atom_col.calculator.energy(r)
         return E
     
