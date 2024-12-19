@@ -88,7 +88,12 @@ class Kernel_Ridge_Regression():
     
     def sample(self, x_data):
         return np.dot(self.create_K(x_data=x_data), self.alpha)
-    
+
+class ridge_regressor(Kernel_Ridge_Regression):
+    def __init__(self, x_data, y_data, N_deg, lamb) -> None:
+        kernel_func = lambda x_basis, x_data: lin_kernel_func(x_basis=x_basis, x_data=x_data, N_deg=N_deg)
+        super().__init__(x_data, y_data, kernel_func, lamb)
+
 class pol_kernel_regressor(Kernel_Ridge_Regression):
     def __init__(self, x_data, y_data, N_deg, lamb) -> None:
         kernel_func = lambda x_basis, x_data: pol_kernel_func(x_basis=x_basis, x_data=x_data, N_deg=N_deg)

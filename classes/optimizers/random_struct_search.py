@@ -17,7 +17,7 @@ class Line_searcher1(Optimizer1):
         else:
             return False
         
-    def E_new(self, alpha, current_pos, forces_unit):
+    def E_new_pbc(self, alpha, current_pos, forces_unit):
         pos_step = alpha*forces_unit
         new_pos = self.atom_col.pbc_handler.restrict_positions(current_pos+pos_step)
         r = self.atom_col.pbc_handler.get_periodic_dist(new_pos)
@@ -25,6 +25,12 @@ class Line_searcher1(Optimizer1):
         E = self.atom_col.calculator.energy(r)
         return E
     
+    def E_new(self, alpha, current_pos, forces_unit):
+        pos_step = alpha*forces_unit
+        r = pdist(current_pos+pos_step)
+        E = self.atom_col.calculator.energy(r)
+        return E
+
     def run(self, N_max=5000, fmax=0.05, track=False):
         converged = False
         i = 0
@@ -32,7 +38,10 @@ class Line_searcher1(Optimizer1):
         current_forces = self.get_forces()*1.0
         while not(converged) and i < N_max:
             forces_unit = current_forces/np.linalg.norm(current_forces, axis=1)[:,None]
-            alpha_opt = fmin(self.E_new, 0.1, args=(current_position, forces_unit), disp=False)
+            if self.atom_col.pbc == True:
+                alpha_opt = fmin(self.E_new_pbc, 0.1, args=(current_position, forces_unit), disp=False)
+            else:
+                alpha_opt = fmin(self.E_new, 0.1, args=(current_position, forces_unit), disp=False)
             step_pos = alpha_opt*forces_unit
             self.move_atoms(step_pos)
             current_forces = self.get_forces()*1.0

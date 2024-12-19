@@ -39,9 +39,9 @@ class LJGauss(Calculator):
         return lennard_term - gauss_term
     
     def _dV_dr(self, r):
-        t1 = 6.0*(1.0**6)/(r**7)
-        t2 = 2.0*12.0*(1.0**12)/(r**13)
-        lennard_term = (t1 - t2)
+        t1 = (1.0**6)/(r**7)
+        t2 = (1.0**12)/(r**13)
+        lennard_term = 12.0*(t1 - t2)
         np.fill_diagonal(r, 0.0)
         gauss_term = self.gauss_eps/self.gauss_sigma2*np.exp(-(r-self.r0)**2/(2.0*self.gauss_sigma2))*(r-self.r0)
         total_force = lennard_term+gauss_term
