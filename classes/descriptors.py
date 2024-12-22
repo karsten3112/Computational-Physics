@@ -1,7 +1,7 @@
 import numpy as np
 from classes.atoms import Atom, Atom_Collection
 import matplotlib.pyplot as plt
-from scipy.spatial.distance import squareform
+from scipy.spatial.distance import squareform, pdist
 
 
 class Descriptor():
@@ -98,7 +98,7 @@ class ConnectivityGraphSpectrum():
         self.color = color
 
     def get_descriptor(self, atom_col, r_min=2.0**(1/6.0)*2**(-1/6), A=1.2):
-        dist = atom_col.get_distances()
+        dist = pdist(atom_col.positions)
         connectivity_matrix = (squareform(dist) <= A*r_min).astype(int)
         np.fill_diagonal(connectivity_matrix, 0)
         #print(connectivity_matrix)
