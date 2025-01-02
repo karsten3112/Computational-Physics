@@ -20,7 +20,7 @@ class H_pot():
     def boltzmann_factor(self, energy):
         return np.exp(-(energy)/(self.k_b*self.T))
 
-    def boltzmann_diff_factor(self, energy, energy_prime):
+    def boltzmann_diff_factor(self, energy_prime, energy):
         return np.exp(-(energy_prime-energy)/(self.k_b*self.T))
 
     def get_pdist(self, method, **kwargs):
@@ -47,18 +47,22 @@ class H_pot():
         return exp_val
 
     def metro_montecarlo_sampling(self, proposal_func, x0, N, terminate_sampling=(False, 0.0), **kwargs):
-        accept_prop = lambda x_prime, x: self.boltzmann_diff_factor(self.v_func(x, **self.v_func_args),self.v_func(x_prime, **self.v_func_args))#self.boltzmann_factor(self.v_func(x_prime, **self.v_func_args))/self.boltzmann_factor(self.v_func(x, **self.v_func_args))
+        accept_prop = lambda x_prime, x: self.boltzmann_diff_factor(self.v_func(x_prime, **self.v_func_args), self.v_func(x, **self.v_func_args))#self.boltzmann_factor(self.v_func(x_prime, **self.v_func_args))/self.boltzmann_factor(self.v_func(x, **self.v_func_args))
         xs = []
         x = x0
         while len(xs) < N:
             p = np.random.rand(1)
+            #print(x)
             x_prime = proposal_func(x, **kwargs)
-            acc_prob = accept_prop(x=x, x_prime=x_prime)
-            if p <= min(1.0, acc_prob):
+            #print(x_prime)
+            acc_prob = accept_prop(x_prime=x_prime, x=x)
+            if p < min(1.0, acc_prob):
+                #print(p, min(1.0, acc_prob))
                 xs.append(x_prime)
                 x = x_prime
-            else:
+            if p > min(1.0, acc_prob):
                 xs.append(x)
+            
             if terminate_sampling[0] is True:
                 if self(x) <= terminate_sampling[1]:
                     break
@@ -100,7 +104,7 @@ class H_pot_direct_integration(H_pot):
     def plot(self, ax, plot_range=[-4, 4], colors={ "v_avg": "C3","v_func": "k", "p_dist":"C0"}):
         super().plot(ax, plot_range, colors)
         xs = np.linspace(plot_range[0], plot_range[1], 400)
-        ax.fill_between(xs, self.p_func(xs, **self.p_func_args), color=colors["p_dist"], label=r"$P(x)$", alpha=0.6, hatch="x", edgecolor="k")
+        ax.fill_between(xs, self.p_func(xs, **self.p_func_args), color=colors["p_dist"], label=r"$P(x)$", alpha=0.6, edgecolor="k")
 
     
     def step_temperature(self, T_step):
@@ -167,8 +171,9 @@ class H_plain_MonteCarlo(H_pot):
             self.get_pdist()
         dist, bin_edges = np.histogram(self.p_dist, bins=bin_edges)
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) /2
-        max_dist = np.max(dist)
-        ax.bar(bin_centers, dist/max_dist*1.2, width=0.8*bin_size, alpha=0.6, edgecolor="k")
+        #max_dist = np.max(dist)*1.2
+        max_dist = np.sum(dist*bin_size)
+        ax.bar(bin_centers, dist/max_dist, width=0.8*bin_size, alpha=0.6, edgecolor="k", label=r"$P(x)-$Monte carlo")
 
     def get_expectation_value(self, operator):
         if self.p_dist is None:
@@ -217,8 +222,8 @@ class H_Metro_MonteCarlo(H_pot):
             self.get_pdist()
         dist, bin_edges = np.histogram(self.p_dist, bins=bin_edges)
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) /2
-        max_dist = np.max(dist)
-        ax.bar(bin_centers, dist/max_dist*1.2, width=0.8*bin_size, alpha=0.6, edgecolor="k")
+        max_dist = max_dist = np.sum(dist*bin_size)#np.max(dist)*1.2
+        ax.bar(bin_centers, dist/max_dist, width=0.8*bin_size, alpha=0.6, edgecolor="k", label=r"$P(x)-$Metro. Monte carlo")
 
 class H_pot_ref(H_pot):
     def __init__(self, H_pot_ref,  T, v_func, v_func_args):

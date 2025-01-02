@@ -21,6 +21,9 @@ class Bassin_Hopper(Optimizer1):
         self.N_metropol = N_metropol
         self.start_quench = start_quench
 
+    def initial_accept(self, E_current, E_new):
+        return np.exp(-(E_new-E_current)/self.T)
+
     def run(self, N_max=500, fmax=0.05, E_limit=-300, track=False, proposal_func=gauss_dist, prop_args=(0.2,), metro_method="all_atoms"):
         i = 0
         E_current = self.get_potential_energy()
@@ -34,10 +37,11 @@ class Bassin_Hopper(Optimizer1):
                 metropol.run_each_atom(N_max=self.N_metropol, E_limit=E_limit, track=track, start_quench=self.start_quench)
 
             self.atom_col = copy.deepcopy(metropol.atom_col)
-
             line_searcher = Line_searcher1(atom_col=self.atom_col)
             line_searcher.run(N_max=self.N_lin_search, fmax=fmax, track=track)
             
+            rnd = np.random.rand(1)
+
             self.atom_col = copy.deepcopy(line_searcher.best_atom_col)
             
             if track == True:
