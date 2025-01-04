@@ -16,16 +16,22 @@ class Particle_swarm():
     def find_global_best(self):
         energies = [particle.best_energy for particle in self.particles]
         index = np.argmin(energies)
-        self.global_best = self.particles[index].best_pos
-        self.global_best_energy = self.particles[index].best_energy
-        self.global_best_particle = self.particles[index]
+        if self.global_best_energy is None:
+            self.global_best_pos = self.particles[index].best_pos
+            self.global_best_energy = self.particles[index].best_energy
+            self.global_best_particle = self.particles[index]
+    
+        elif energies[index] < self.global_best_energy:
+            self.global_best_pos = self.particles[index].best_pos
+            self.global_best_energy = self.particles[index].best_energy
+            self.global_best_particle = self.particles[index]
 
     def run(self, N_max, E_crit, track=False):
         i = 0
         self.find_global_best()
         while i < N_max and self.global_best_energy > E_crit: 
             for particle in self.particles:
-                particle.update_velocity(self.global_best, self.w, self.c1, self.c2)
+                particle.update_velocity(self.global_best_pos, self.w, self.c1, self.c2)
                 particle.update_pos()
                 particle.update_best_pos()
                 if track == True:
@@ -40,22 +46,24 @@ class Particle(Optimizer1):
         self.best_pos = self.get_atom_positions()
         self.best_energy = self.get_potential_energy()
         self.pos = self.best_pos*1.0
-        self.v = gamma*np.random.rand(self.atom_col.N_atoms, 2)
+        self.v = gamma*np.random.randn(self.atom_col.N_atoms, 2)
+        self.logged_velocities = [self.v]
 
     def update_best_pos(self):
         new_energy = self.get_potential_energy()
         if new_energy < self.best_energy:
             self.best_energy = new_energy
-            self.best_pos = self.pos
+            self.best_pos = self.pos*1.0
 
-    def update_velocity(self, global_best, w, c1, c2):
+    def update_velocity(self, global_best_pos, w, c1, c2):
         r1 = np.random.rand(1)
         r2 = np.random.rand(1)
-        new_velocity = w*self.v + c1*r1*(self.best_pos - self.pos) + c2*r2*(global_best - self.pos)
+        new_velocity = w*self.v + c1*r1*(self.best_pos - self.pos) + c2*r2*(global_best_pos - self.pos)
         self.v = new_velocity
+        self.logged_velocities.append(self.v*1.0)
 
-    def update_pos(self):
-        self.move_atoms(self.v)
-        self.pos = self.get_atom_positions()
+    def update_pos(self, delta_t=0.8):
+        self.move_atoms(self.v*delta_t)
+        self.pos = self.get_atom_positions()*1.0
 
     
